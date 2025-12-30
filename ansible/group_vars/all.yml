@@ -1,0 +1,59 @@
+# Global variables for all hosts
+
+# Project settings
+project_name: liberty-platform
+organization: "Liberty Platform Team"
+
+# AWS settings
+aws_region: us-east-1
+
+# Common packages to install on all hosts
+common_packages:
+  - git
+  - curl
+  - wget
+  - unzip
+  - jq
+  - htop
+  - vim
+  - tmux
+  - python3
+  - python3-pip
+
+# Timezone
+timezone: UTC
+
+# NTP configuration
+ntp_servers:
+  - 169.254.169.123  # AWS Time Sync Service
+
+# SSH settings
+ssh_permit_root_login: "no"
+ssh_password_authentication: "no"
+ssh_max_auth_tries: 3
+
+# Log retention (days)
+log_retention_days: 30
+
+# Node exporter settings (for Prometheus monitoring)
+node_exporter_version: "1.7.0"
+node_exporter_port: 9100
+node_exporter_enabled: true
+
+# CloudWatch agent
+cloudwatch_agent_enabled: true
+
+# Security settings
+selinux_state: enforcing
+
+# Directories
+app_base_dir: /opt
+log_base_dir: /var/log
+data_base_dir: /var/lib
+
+# Docker settings (for AWX and monitoring)
+docker_edition: ce
+docker_version: latest
+docker_compose_version: "2.24.0"
+docker_users:
+  - ec2-user

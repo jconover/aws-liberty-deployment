@@ -1,0 +1,37 @@
+---
+# Monitoring role handlers
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Reload Prometheus
+  ansible.builtin.uri:
+    url: "http://localhost:{{ prometheus_port }}/-/reload"
+    method: POST
+    status_code: 200
+  ignore_errors: yes
+
+- name: Restart Alertmanager
+  community.docker.docker_compose:
+    project_src: /etc/prometheus
+    services:
+      - alertmanager
+    state: present
+    restarted: yes
+
+- name: Restart Prometheus
+  community.docker.docker_compose:
+    project_src: /etc/prometheus
+    services:
+      - prometheus
+    state: present
+    restarted: yes
+
+- name: Restart Grafana
+  community.docker.docker_compose:
+    project_src: /etc/prometheus
+    services:
+      - grafana
+    state: present
+    restarted: yes

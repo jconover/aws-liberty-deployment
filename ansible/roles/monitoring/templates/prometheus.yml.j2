@@ -1,0 +1,80 @@
+# Prometheus Configuration - Managed by Ansible
+global:
+  scrape_interval: {{ prometheus_global_config.scrape_interval }}
+  evaluation_interval: {{ prometheus_global_config.evaluation_interval }}
+  scrape_timeout: {{ prometheus_global_config.scrape_timeout }}
+
+  external_labels:
+    monitor: '{{ project_name }}'
+    environment: '{{ env | default("prod") }}'
+
+alerting:
+  alertmanagers:
+{% for am in prometheus_alertmanager_config %}
+    - static_configs:
+{% for sc in am.static_configs %}
+        - targets: {{ sc.targets | to_json }}
+{% endfor %}
+{% endfor %}
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+{% for config in prometheus_scrape_configs %}
+  - job_name: '{{ config.job_name }}'
+{% if config.static_configs is defined %}
+    static_configs:
+{% for sc in config.static_configs %}
+      - targets: {{ sc.targets | to_json }}
+{% if sc.labels is defined %}
+        labels: {{ sc.labels | to_json }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if config.ec2_sd_configs is defined %}
+    ec2_sd_configs:
+{% for ec2_config in config.ec2_sd_configs %}
+      - region: {{ ec2_config.region }}
+        port: {{ ec2_config.port }}
+{% if ec2_config.filters is defined %}
+        filters:
+{% for filter in ec2_config.filters %}
+          - name: {{ filter.name }}
+            values: {{ filter.values | to_json }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if config.relabel_configs is defined %}
+    relabel_configs:
+{% for rc in config.relabel_configs %}
+      - source_labels: {{ rc.source_labels | to_json }}
+{% if rc.separator is defined %}
+        separator: '{{ rc.separator }}'
+{% endif %}
+{% if rc.target_label is defined %}
+        target_label: {{ rc.target_label }}
+{% endif %}
+{% if rc.regex is defined %}
+        regex: '{{ rc.regex }}'
+{% endif %}
+{% if rc.replacement is defined %}
+        replacement: '{{ rc.replacement }}'
+{% endif %}
+{% if rc.action is defined %}
+        action: {{ rc.action }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if config.metrics_path is defined %}
+    metrics_path: {{ config.metrics_path }}
+{% endif %}
+{% if config.scheme is defined %}
+    scheme: {{ config.scheme }}
+{% endif %}
+{% if config.scrape_interval is defined %}
+    scrape_interval: {{ config.scrape_interval }}
+{% endif %}
+
+{% endfor %}

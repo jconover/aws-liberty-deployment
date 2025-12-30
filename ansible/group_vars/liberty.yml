@@ -1,0 +1,85 @@
+# Liberty server variables
+
+# Liberty version and download
+liberty_version: "24.0.0.1"
+liberty_download_url: "https://public.dhe.ibm.com/ibmdl/export/pub/software/openliberty/runtime/release/{{ liberty_version }}/openliberty-{{ liberty_version }}.zip"
+
+# Liberty installation paths
+liberty_install_dir: /opt/liberty
+liberty_wlp_dir: "{{ liberty_install_dir }}/wlp"
+liberty_servers_dir: "{{ liberty_wlp_dir }}/usr/servers"
+liberty_shared_dir: "{{ liberty_wlp_dir }}/usr/shared"
+
+# Liberty user/group
+liberty_user: liberty
+liberty_group: liberty
+
+# Liberty server configuration
+liberty_server_name: defaultServer
+liberty_http_port: 9080
+liberty_https_port: 9443
+liberty_admin_port: 9043
+
+# Liberty features to enable
+liberty_features:
+  - webProfile-10.0
+  - microProfile-6.0
+  - monitor-1.0
+  - mpMetrics-5.0
+  - mpHealth-4.0
+  - transportSecurity-1.0
+
+# Liberty JVM options
+liberty_jvm_options:
+  - "-Xms512m"
+  - "-Xmx2g"
+  - "-XX:+UseG1GC"
+  - "-XX:+UseStringDeduplication"
+  - "-Djava.net.preferIPv4Stack=true"
+
+# Liberty logging
+liberty_log_level: INFO
+liberty_log_max_files: 10
+liberty_log_max_size: 100  # MB
+
+# Liberty metrics exporter port
+liberty_metrics_port: 9545
+
+# Application deployment settings
+liberty_apps_dir: "{{ liberty_servers_dir }}/{{ liberty_server_name }}/apps"
+liberty_dropins_dir: "{{ liberty_servers_dir }}/{{ liberty_server_name }}/dropins"
+liberty_app_extract: true
+
+# SSL/TLS settings
+liberty_ssl_enabled: true
+liberty_keystore_password: "{{ vault_liberty_keystore_password | default('changeit') }}"
+
+# Health check endpoints
+liberty_health_endpoint: /health
+liberty_ready_endpoint: /health/ready
+liberty_live_endpoint: /health/live
+
+# Resource limits
+liberty_max_connections: 200
+liberty_connection_timeout: 30s
+
+# Session settings
+liberty_session_timeout: 30m
+liberty_session_persistence: false
+
+# Data sources (example - customize per application)
+liberty_datasources: []
+#  - id: DefaultDataSource
+#    jndi_name: jdbc/defaultDS
+#    type: javax.sql.DataSource
+#    driver: org.postgresql.Driver
+#    url: "jdbc:postgresql://localhost:5432/appdb"
+#    user: "{{ vault_db_user }}"
+#    password: "{{ vault_db_password }}"
+
+# Application deployments (managed by AWX job templates)
+liberty_applications: []
+#  - name: myapp
+#    artifact_url: "s3://artifacts/myapp-1.0.0.war"
+#    context_root: /myapp
+#    health_check: /myapp/health

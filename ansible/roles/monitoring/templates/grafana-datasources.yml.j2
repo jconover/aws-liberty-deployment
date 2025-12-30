@@ -1,0 +1,18 @@
+# Grafana Datasources - Managed by Ansible
+apiVersion: 1
+
+datasources:
+{% for ds in grafana_datasources %}
+  - name: {{ ds.name }}
+    type: {{ ds.type }}
+    url: {{ ds.url }}
+    access: {{ ds.access }}
+    isDefault: {{ ds.isDefault | default(false) | string | lower }}
+{% if ds.basicAuth is defined %}
+    basicAuth: {{ ds.basicAuth | string | lower }}
+{% endif %}
+{% if ds.jsonData is defined %}
+    jsonData:
+{{ ds.jsonData | to_nice_yaml | indent(6) }}
+{% endif %}
+{% endfor %}

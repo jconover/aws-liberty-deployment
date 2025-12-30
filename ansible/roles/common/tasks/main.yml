@@ -1,0 +1,166 @@
+---
+# Common role - Base configuration for all servers
+
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+  tags:
+    - common
+    - hostname
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+  tags:
+    - common
+    - timezone
+
+- name: Update all packages
+  ansible.builtin.yum:
+    name: "*"
+    state: latest
+    security: yes
+  when: update_packages | default(true)
+  tags:
+    - common
+    - packages
+
+- name: Install common packages
+  ansible.builtin.yum:
+    name: "{{ common_packages }}"
+    state: present
+  tags:
+    - common
+    - packages
+
+- name: Configure NTP with chrony
+  ansible.builtin.template:
+    src: chrony.conf.j2
+    dest: /etc/chrony.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart chronyd
+  tags:
+    - common
+    - ntp
+
+- name: Enable and start chronyd
+  ansible.builtin.systemd:
+    name: chronyd
+    state: started
+    enabled: yes
+  tags:
+    - common
+    - ntp
+
+- name: Configure SSH
+  ansible.builtin.template:
+    src: sshd_config.j2
+    dest: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: "0600"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Restart sshd
+  tags:
+    - common
+    - ssh
+    - security
+
+- name: Configure logrotate for application logs
+  ansible.builtin.template:
+    src: logrotate.conf.j2
+    dest: /etc/logrotate.d/applications
+    owner: root
+    group: root
+    mode: "0644"
+  tags:
+    - common
+    - logging
+
+- name: Create log directory
+  ansible.builtin.file:
+    path: /var/log/ansible
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags:
+    - common
+    - logging
+
+- name: Configure journald
+  ansible.builtin.copy:
+    dest: /etc/systemd/journald.conf.d/custom.conf
+    content: |
+      [Journal]
+      Storage=persistent
+      Compress=yes
+      SystemMaxUse=500M
+      SystemMaxFileSize=50M
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart journald
+  tags:
+    - common
+    - logging
+
+- name: Configure kernel parameters
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-custom.conf
+    reload: yes
+  loop:
+    - { name: "net.core.somaxconn", value: "65535" }
+    - { name: "net.ipv4.tcp_max_syn_backlog", value: "65535" }
+    - { name: "net.ipv4.ip_local_port_range", value: "1024 65535" }
+    - { name: "vm.swappiness", value: "10" }
+    - { name: "net.ipv4.tcp_keepalive_time", value: "300" }
+  tags:
+    - common
+    - sysctl
+
+- name: Configure system limits
+  ansible.builtin.template:
+    src: limits.conf.j2
+    dest: /etc/security/limits.d/99-custom.conf
+    owner: root
+    group: root
+    mode: "0644"
+  tags:
+    - common
+    - limits
+
+- name: Install and configure AWS CLI v2
+  block:
+    - name: Download AWS CLI v2
+      ansible.builtin.get_url:
+        url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+        dest: /tmp/awscliv2.zip
+        mode: "0644"
+
+    - name: Extract AWS CLI
+      ansible.builtin.unarchive:
+        src: /tmp/awscliv2.zip
+        dest: /tmp
+        remote_src: yes
+
+    - name: Install AWS CLI
+      ansible.builtin.command: /tmp/aws/install --update
+      args:
+        creates: /usr/local/bin/aws
+
+    - name: Clean up
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/awscliv2.zip
+        - /tmp/aws
+  when: install_aws_cli | default(true)
+  tags:
+    - common
+    - aws

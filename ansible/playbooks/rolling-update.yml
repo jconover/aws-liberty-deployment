@@ -1,0 +1,192 @@
+---
+# Rolling Update Playbook
+# Performs rolling updates across Liberty server fleet
+# Usage: ansible-playbook playbooks/rolling-update.yml -e "app_name=myapp app_version=2.0.0"
+
+- name: Rolling Update - Pre-flight Checks
+  hosts: liberty
+  become: yes
+  gather_facts: yes
+  any_errors_fatal: true
+
+  vars:
+    min_healthy_hosts: "{{ (groups['liberty'] | length * 0.5) | int }}"
+
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - app_name is defined
+          - app_version is defined
+        fail_msg: "Required variables: app_name, app_version"
+      run_once: true
+
+    - name: Check current health of all servers
+      ansible.builtin.uri:
+        url: "http://localhost:{{ liberty_http_port }}{{ liberty_health_endpoint }}"
+        status_code: [200, 503]
+      register: pre_health
+      ignore_errors: yes
+
+    - name: Count healthy servers
+      ansible.builtin.set_fact:
+        healthy_count: "{{ groups['liberty'] | map('extract', hostvars, 'pre_health') | selectattr('status', 'defined') | selectattr('status', 'equalto', 200) | list | length }}"
+      run_once: true
+
+    - name: Verify minimum healthy servers
+      ansible.builtin.assert:
+        that:
+          - healthy_count | int >= min_healthy_hosts | int
+        fail_msg: "Not enough healthy servers to proceed. Have {{ healthy_count }}, need {{ min_healthy_hosts }}"
+      run_once: true
+
+    - name: Display pre-flight status
+      ansible.builtin.debug:
+        msg: |
+          Rolling Update Pre-flight Check
+          --------------------------------
+          Total servers: {{ groups['liberty'] | length }}
+          Healthy servers: {{ healthy_count }}
+          Minimum required: {{ min_healthy_hosts }}
+          Application: {{ app_name }}
+          Target version: {{ app_version }}
+      run_once: true
+
+  tags:
+    - preflight
+
+- name: Rolling Update - Deploy
+  hosts: liberty
+  become: yes
+  serial: 1  # One server at a time
+  max_fail_percentage: 0
+
+  vars:
+    deployment_timeout: 180
+    health_check_retries: 18
+    health_check_delay: 10
+    drain_time: 30
+
+  tasks:
+    - name: Mark server for maintenance
+      ansible.builtin.debug:
+        msg: "Starting update on {{ inventory_hostname }}"
+
+    - name: Drain connections (wait for in-flight requests)
+      ansible.builtin.pause:
+        seconds: "{{ drain_time }}"
+      when: drain_connections | default(true)
+
+    - name: Stop Liberty server
+      ansible.builtin.systemd:
+        name: liberty
+        state: stopped
+
+    - name: Backup current application
+      ansible.builtin.copy:
+        src: "{{ liberty_apps_dir }}/{{ app_name }}.war"
+        dest: "{{ liberty_apps_dir }}/{{ app_name }}.war.rollback"
+        remote_src: yes
+      ignore_errors: yes
+
+    - name: Download new artifact
+      ansible.builtin.command:
+        cmd: >
+          aws s3 cp {{ artifact_bucket | default('s3://' + project_name + '-' + env + '-artifacts') }}/{{ app_name }}/{{ app_version }}/{{ app_name }}.war
+          {{ liberty_apps_dir }}/{{ app_name }}.war
+
+    - name: Set artifact permissions
+      ansible.builtin.file:
+        path: "{{ liberty_apps_dir }}/{{ app_name }}.war"
+        owner: "{{ liberty_user }}"
+        group: "{{ liberty_group }}"
+        mode: "0644"
+
+    - name: Start Liberty server
+      ansible.builtin.systemd:
+        name: liberty
+        state: started
+
+    - name: Wait for Liberty to be ready
+      ansible.builtin.wait_for:
+        port: "{{ liberty_http_port }}"
+        host: 127.0.0.1
+        delay: 15
+        timeout: "{{ deployment_timeout }}"
+
+    - name: Verify application health
+      ansible.builtin.uri:
+        url: "http://localhost:{{ liberty_http_port }}/{{ app_name }}{{ app_health_path | default('/health') }}"
+        status_code: 200
+        timeout: 10
+      register: health_result
+      until: health_result.status == 200
+      retries: "{{ health_check_retries }}"
+      delay: "{{ health_check_delay }}"
+
+    - name: Remove rollback backup on success
+      ansible.builtin.file:
+        path: "{{ liberty_apps_dir }}/{{ app_name }}.war.rollback"
+        state: absent
+      when: health_result.status == 200
+
+    - name: Update completed successfully
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} updated successfully to version {{ app_version }}"
+
+  rescue:
+    - name: Rollback - Restore previous version
+      ansible.builtin.copy:
+        src: "{{ liberty_apps_dir }}/{{ app_name }}.war.rollback"
+        dest: "{{ liberty_apps_dir }}/{{ app_name }}.war"
+        remote_src: yes
+      ignore_errors: yes
+
+    - name: Rollback - Restart Liberty
+      ansible.builtin.systemd:
+        name: liberty
+        state: restarted
+
+    - name: Rollback - Wait for recovery
+      ansible.builtin.wait_for:
+        port: "{{ liberty_http_port }}"
+        host: 127.0.0.1
+        delay: 10
+        timeout: 120
+      ignore_errors: yes
+
+    - name: Fail the play
+      ansible.builtin.fail:
+        msg: |
+          Rolling update failed on {{ inventory_hostname }}!
+          Rollback attempted.
+          Stopping further updates.
+
+  tags:
+    - rolling-update
+    - deploy
+
+- name: Rolling Update - Post Verification
+  hosts: liberty
+  become: yes
+  gather_facts: no
+
+  tasks:
+    - name: Final health check
+      ansible.builtin.uri:
+        url: "http://localhost:{{ liberty_http_port }}{{ liberty_health_endpoint }}"
+        status_code: 200
+      register: final_health
+
+    - name: Display final status
+      ansible.builtin.debug:
+        msg: |
+          Rolling Update Complete
+          ------------------------
+          Host: {{ inventory_hostname }}
+          Status: {{ 'HEALTHY' if final_health.status == 200 else 'UNHEALTHY' }}
+          Application: {{ app_name }}
+          Version: {{ app_version }}
+
+  tags:
+    - verify

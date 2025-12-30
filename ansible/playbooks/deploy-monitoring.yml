@@ -1,0 +1,37 @@
+---
+# Monitoring Stack Deployment Playbook
+# Deploys Prometheus, Grafana, and Alertmanager
+# Usage: ansible-playbook playbooks/deploy-monitoring.yml -l monitoring
+
+- name: Deploy Monitoring Stack
+  hosts: monitoring
+  become: yes
+
+  pre_tasks:
+    - name: Verify connectivity
+      ansible.builtin.ping:
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+  roles:
+    - common
+    - node_exporter
+    - monitoring
+
+  post_tasks:
+    - name: Display monitoring URLs
+      ansible.builtin.debug:
+        msg: |
+          Monitoring Stack Deployed Successfully!
+          ----------------------------------------
+          Prometheus: http://{{ ansible_default_ipv4.address }}:{{ prometheus_port }}
+          Grafana: http://{{ ansible_default_ipv4.address }}:{{ grafana_port }}
+          Alertmanager: http://{{ ansible_default_ipv4.address }}:{{ alertmanager_port }}
+
+          Grafana Credentials:
+          Username: {{ grafana_admin_user }}
+          Password: (from vault)
+
+  tags:
+    - monitoring

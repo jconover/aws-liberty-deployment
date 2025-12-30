@@ -1,0 +1,205 @@
+---
+# AWX Workflow Templates
+# Define complex automation workflows
+
+# Workflow: Full Liberty Deployment
+- name: Full Liberty Server Deployment
+  description: Complete workflow to provision and configure a new Liberty server
+  organization: Liberty Platform Team
+  ask_variables_on_launch: false
+  survey_enabled: false
+  workflow_nodes:
+    - identifier: provision-server
+      unified_job_template: Deploy New Liberty Server
+      success_nodes:
+        - configure-monitoring
+      failure_nodes:
+        - notify-failure
+
+    - identifier: configure-monitoring
+      unified_job_template: Deploy Monitoring Stack
+      success_nodes:
+        - verify-deployment
+      failure_nodes:
+        - notify-failure
+
+    - identifier: verify-deployment
+      unified_job_template: Liberty Health Check
+      success_nodes:
+        - notify-success
+      failure_nodes:
+        - notify-failure
+
+    - identifier: notify-success
+      unified_job_template: Send Notification
+      extra_data:
+        notification_type: success
+        message: "Liberty server deployment completed successfully"
+
+    - identifier: notify-failure
+      unified_job_template: Send Notification
+      extra_data:
+        notification_type: failure
+        message: "Liberty server deployment failed"
+
+# Workflow: Application Deployment with Validation
+- name: Application Deployment Pipeline
+  description: Deploys application with pre and post validation
+  organization: Liberty Platform Team
+  ask_variables_on_launch: true
+  survey_enabled: true
+  survey_spec:
+    name: Application Deployment Pipeline Survey
+    spec:
+      - question_name: Application Name
+        variable: app_name
+        type: text
+        required: true
+      - question_name: Version
+        variable: app_version
+        type: text
+        required: true
+      - question_name: Environment
+        variable: target_env
+        type: multiplechoice
+        required: true
+        default: dev
+        choices:
+          - dev
+          - stage
+          - prod
+  workflow_nodes:
+    - identifier: pre-check
+      unified_job_template: Liberty Health Check
+      success_nodes:
+        - deploy-app
+      failure_nodes:
+        - notify-failure
+
+    - identifier: deploy-app
+      unified_job_template: Deploy Application
+      success_nodes:
+        - post-check
+      failure_nodes:
+        - rollback
+
+    - identifier: post-check
+      unified_job_template: Liberty Health Check
+      success_nodes:
+        - notify-success
+      failure_nodes:
+        - rollback
+
+    - identifier: rollback
+      unified_job_template: Rollback Application
+      always_nodes:
+        - notify-failure
+
+    - identifier: notify-success
+      unified_job_template: Send Notification
+      extra_data:
+        notification_type: success
+        message: "Application {{ app_name }} version {{ app_version }} deployed successfully"
+
+    - identifier: notify-failure
+      unified_job_template: Send Notification
+      extra_data:
+        notification_type: failure
+        message: "Application deployment failed for {{ app_name }} version {{ app_version }}"
+
+# Workflow: Production Rolling Update
+- name: Production Rolling Update
+  description: Safe rolling update with canary validation
+  organization: Liberty Platform Team
+  ask_variables_on_launch: true
+  survey_enabled: true
+  survey_spec:
+    name: Production Rolling Update Survey
+    spec:
+      - question_name: Application Name
+        variable: app_name
+        type: text
+        required: true
+      - question_name: Target Version
+        variable: app_version
+        type: text
+        required: true
+      - question_name: Canary Host
+        question_description: Single host for canary deployment
+        variable: canary_host
+        type: text
+        required: true
+  workflow_nodes:
+    - identifier: pre-flight
+      unified_job_template: Liberty Health Check
+      success_nodes:
+        - canary-deploy
+      failure_nodes:
+        - notify-failure
+
+    - identifier: canary-deploy
+      unified_job_template: Deploy Application
+      extra_data:
+        limit: "{{ canary_host }}"
+        rolling_update_batch: 1
+      success_nodes:
+        - canary-validation
+      failure_nodes:
+        - notify-failure
+
+    - identifier: canary-validation
+      unified_job_template: Liberty Health Check
+      extra_data:
+        limit: "{{ canary_host }}"
+      success_nodes:
+        - approval-gate
+      failure_nodes:
+        - canary-rollback
+
+    - identifier: approval-gate
+      approval_node: true
+      name: Approve Production Rollout
+      description: Review canary metrics before proceeding
+      timeout: 3600
+      success_nodes:
+        - rolling-update
+      failure_nodes:
+        - canary-rollback
+
+    - identifier: rolling-update
+      unified_job_template: Rolling Update
+      success_nodes:
+        - final-validation
+      failure_nodes:
+        - full-rollback
+
+    - identifier: final-validation
+      unified_job_template: Liberty Health Check
+      success_nodes:
+        - notify-success
+      failure_nodes:
+        - full-rollback
+
+    - identifier: canary-rollback
+      unified_job_template: Rollback Application
+      extra_data:
+        limit: "{{ canary_host }}"
+      always_nodes:
+        - notify-failure
+
+    - identifier: full-rollback
+      unified_job_template: Rollback Application
+      always_nodes:
+        - notify-failure
+
+    - identifier: notify-success
+      unified_job_template: Send Notification
+      extra_data:
+        notification_type: success
+        message: "Production rolling update completed for {{ app_name }} version {{ app_version }}"
+
+    - identifier: notify-failure
+      unified_job_template: Send Notification
+      extra_data:
+        notification_type: failure
+        message: "Production rolling update failed for {{ app_name }}"

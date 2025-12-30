@@ -1,0 +1,21 @@
+---
+# Liberty role handlers
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Restart Liberty
+  ansible.builtin.systemd:
+    name: liberty
+    state: restarted
+
+- name: Stop Liberty
+  ansible.builtin.systemd:
+    name: liberty
+    state: stopped
+
+- name: Start Liberty
+  ansible.builtin.systemd:
+    name: liberty
+    state: started

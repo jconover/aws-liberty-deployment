@@ -1,0 +1,26 @@
+# Application log rotation - managed by Ansible
+
+/var/log/applications/*.log {
+    daily
+    rotate {{ log_retention_days }}
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root root
+    sharedscripts
+    postrotate
+        /bin/systemctl reload rsyslog > /dev/null 2>&1 || true
+    endscript
+}
+
+/opt/liberty/wlp/usr/servers/*/logs/*.log {
+    daily
+    rotate {{ log_retention_days }}
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 liberty liberty
+    copytruncate
+}

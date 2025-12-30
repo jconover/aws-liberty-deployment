@@ -1,0 +1,17 @@
+# Liberty Bootstrap Properties - Managed by Ansible
+
+# Server name
+com.ibm.ws.logging.console.source=message,trace,accessLog
+com.ibm.ws.logging.console.format=simple
+com.ibm.ws.logging.console.log.level={{ liberty_log_level }}
+
+# Application settings
+default.http.port={{ liberty_http_port }}
+default.https.port={{ liberty_https_port }}
+
+# Encoding
+file.encoding=UTF-8
+sun.jnu.encoding=UTF-8
+
+# Liberty directories
+WLP_OUTPUT_DIR=/var/log/liberty

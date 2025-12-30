@@ -1,0 +1,222 @@
+---
+# AWX Job Templates Configuration
+# These templates are configured in AWX to enable automation workflows
+
+# Job Template: Deploy New Liberty Server
+- name: Deploy New Liberty Server
+  description: Provisions and configures a new Liberty application server
+  job_type: run
+  inventory: AWS EC2 Dynamic
+  project: Liberty Deployment
+  playbook: ansible/playbooks/deploy-liberty.yml
+  credentials:
+    - AWS Credentials
+    - SSH Private Key
+  extra_vars:
+    rolling_update_batch: "100%"
+  ask_limit_on_launch: true
+  ask_variables_on_launch: false
+  survey_enabled: false
+  verbosity: 1
+  timeout: 3600
+  become_enabled: true
+
+# Job Template: Deploy Application
+- name: Deploy Application
+  description: Deploys an application to Liberty servers
+  job_type: run
+  inventory: Liberty Servers
+  project: Liberty Deployment
+  playbook: ansible/playbooks/deploy-app.yml
+  credentials:
+    - AWS Credentials
+    - SSH Private Key
+  ask_limit_on_launch: true
+  ask_variables_on_launch: true
+  survey_enabled: true
+  survey_spec:
+    name: Application Deployment Survey
+    description: Parameters for application deployment
+    spec:
+      - question_name: Application Name
+        question_description: Name of the application to deploy
+        variable: app_name
+        type: text
+        required: true
+        default: ""
+      - question_name: Application Version
+        question_description: Version to deploy (e.g., 1.0.0)
+        variable: app_version
+        type: text
+        required: true
+        default: ""
+      - question_name: Artifact Source
+        question_description: Where to get the artifact from
+        variable: artifact_source
+        type: multiplechoice
+        required: true
+        default: s3
+        choices:
+          - s3
+          - http
+          - local
+      - question_name: Artifact URL
+        question_description: URL or path to the artifact
+        variable: artifact_url
+        type: text
+        required: true
+        default: ""
+      - question_name: Create Backup
+        question_description: Create backup before deployment
+        variable: create_backup
+        type: multiplechoice
+        required: false
+        default: "true"
+        choices:
+          - "true"
+          - "false"
+  verbosity: 1
+  timeout: 1800
+  become_enabled: true
+
+# Job Template: Rolling Update
+- name: Rolling Update
+  description: Performs rolling update of application across Liberty fleet
+  job_type: run
+  inventory: Liberty Servers
+  project: Liberty Deployment
+  playbook: ansible/playbooks/rolling-update.yml
+  credentials:
+    - AWS Credentials
+    - SSH Private Key
+  ask_limit_on_launch: false
+  ask_variables_on_launch: true
+  survey_enabled: true
+  survey_spec:
+    name: Rolling Update Survey
+    description: Parameters for rolling update
+    spec:
+      - question_name: Application Name
+        variable: app_name
+        type: text
+        required: true
+      - question_name: Target Version
+        variable: app_version
+        type: text
+        required: true
+      - question_name: Drain Time (seconds)
+        question_description: Time to wait for connections to drain
+        variable: drain_time
+        type: integer
+        required: false
+        default: 30
+        min: 0
+        max: 300
+  verbosity: 1
+  timeout: 7200
+  become_enabled: true
+  forks: 1  # Ensures serial execution
+
+# Job Template: Update Application
+- name: Update Application
+  description: Updates an existing application on Liberty servers (alias for Deploy)
+  job_type: run
+  inventory: Liberty Servers
+  project: Liberty Deployment
+  playbook: ansible/playbooks/deploy-app.yml
+  credentials:
+    - AWS Credentials
+    - SSH Private Key
+  extra_vars:
+    create_backup: true
+    remove_backup_on_success: true
+  ask_limit_on_launch: true
+  ask_variables_on_launch: true
+  survey_enabled: true
+  survey_spec:
+    name: Application Update Survey
+    description: Parameters for application update
+    spec:
+      - question_name: Application Name
+        variable: app_name
+        type: text
+        required: true
+      - question_name: New Version
+        variable: app_version
+        type: text
+        required: true
+      - question_name: Rolling Update Batch Size
+        question_description: Number of servers to update at once
+        variable: rolling_update_batch
+        type: integer
+        required: false
+        default: 1
+        min: 1
+        max: 10
+  verbosity: 1
+  timeout: 3600
+  become_enabled: true
+
+# Job Template: Deploy AWX
+- name: Deploy AWX Server
+  description: Installs and configures AWX automation server
+  job_type: run
+  inventory: AWS EC2 Dynamic
+  project: Liberty Deployment
+  playbook: ansible/playbooks/deploy-awx.yml
+  credentials:
+    - AWS Credentials
+    - SSH Private Key
+  limit: awx
+  ask_limit_on_launch: false
+  ask_variables_on_launch: false
+  verbosity: 1
+  timeout: 5400
+  become_enabled: true
+
+# Job Template: Deploy Monitoring
+- name: Deploy Monitoring Stack
+  description: Deploys Prometheus, Grafana, and Alertmanager
+  job_type: run
+  inventory: AWS EC2 Dynamic
+  project: Liberty Deployment
+  playbook: ansible/playbooks/deploy-monitoring.yml
+  credentials:
+    - AWS Credentials
+    - SSH Private Key
+  limit: monitoring
+  ask_limit_on_launch: false
+  ask_variables_on_launch: false
+  verbosity: 1
+  timeout: 3600
+  become_enabled: true
+
+# Job Template: Health Check
+- name: Liberty Health Check
+  description: Checks health status of all Liberty servers
+  job_type: run
+  inventory: Liberty Servers
+  project: Liberty Deployment
+  playbook: ansible/playbooks/health-check.yml
+  credentials:
+    - SSH Private Key
+  ask_limit_on_launch: true
+  ask_variables_on_launch: false
+  verbosity: 0
+  timeout: 600
+  become_enabled: false
+
+# Job Template: Refresh Inventory
+- name: Refresh AWS Inventory
+  description: Refreshes the AWS EC2 dynamic inventory
+  job_type: run
+  inventory: AWS EC2 Dynamic
+  project: Liberty Deployment
+  playbook: ansible/playbooks/refresh-inventory.yml
+  credentials:
+    - AWS Credentials
+  ask_limit_on_launch: false
+  ask_variables_on_launch: false
+  verbosity: 0
+  timeout: 300
+  become_enabled: false

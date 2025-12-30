@@ -1,0 +1,40 @@
+---
+# AWX Installation Playbook
+# Usage: ansible-playbook playbooks/deploy-awx.yml -l awx
+
+- name: Deploy AWX Automation Server
+  hosts: awx
+  become: yes
+
+  pre_tasks:
+    - name: Verify connectivity
+      ansible.builtin.ping:
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+  roles:
+    - common
+    - node_exporter
+    - awx
+
+  post_tasks:
+    - name: Display AWX URL
+      ansible.builtin.debug:
+        msg: |
+          AWX has been deployed successfully!
+          Access URL: http://{{ ansible_default_ipv4.address }}:8052
+          Username: {{ awx_admin_user }}
+          Password: (from vault)
+
+    - name: Wait for AWX API to be ready
+      ansible.builtin.uri:
+        url: "http://localhost:8052/api/v2/ping/"
+        status_code: 200
+      register: awx_api
+      until: awx_api.status == 200
+      retries: 30
+      delay: 10
+
+  tags:
+    - awx

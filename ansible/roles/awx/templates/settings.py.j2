@@ -1,0 +1,63 @@
+# AWX Settings - Managed by Ansible
+
+import os
+
+DATABASES = {
+    'default': {
+        'ATOMIC_REQUESTS': True,
+        'ENGINE': 'awx.main.db.profiled_pg',
+        'NAME': os.environ.get('DATABASE_NAME', 'awx'),
+        'USER': os.environ.get('DATABASE_USER', 'awx'),
+        'PASSWORD': os.environ.get('DATABASE_PASSWORD', ''),
+        'HOST': os.environ.get('DATABASE_HOST', 'postgres'),
+        'PORT': os.environ.get('DATABASE_PORT', '5432'),
+        'OPTIONS': {
+            'sslmode': os.environ.get('DATABASE_SSLMODE', 'prefer'),
+        },
+    }
+}
+
+CLUSTER_HOST_ID = "awx"
+SYSTEM_UUID = "00000000-0000-0000-0000-000000000000"
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://:{{ awx_redis_password }}@redis:6379/1',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    }
+}
+
+BROKER_URL = 'redis://:{{ awx_redis_password }}@redis:6379/0'
+
+# AWX Settings
+{% for key, value in awx_settings.items() %}
+{% if value is mapping %}
+{{ key }} = {{ value | to_json }}
+{% elif value is string %}
+{{ key }} = '{{ value }}'
+{% else %}
+{{ key }} = {{ value }}
+{% endif %}
+{% endfor %}
+
+# Security
+CSRF_TRUSTED_ORIGINS = ['http://localhost:8052', 'http://127.0.0.1:8052']
+ALLOWED_HOSTS = ['*']
+
+# Logging
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+}

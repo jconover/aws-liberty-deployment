@@ -1,0 +1,23 @@
+# Liberty JVM Options - Managed by Ansible
+
+# Memory settings
+{% for option in liberty_jvm_options %}
+{{ option }}
+{% endfor %}
+
+# Garbage collection logging (for troubleshooting)
+-Xlog:gc*:file=/var/log/liberty/gc.log:time,uptime:filecount=5,filesize=10M
+
+# Enable JMX for monitoring
+-Dcom.sun.management.jmxremote
+-Dcom.sun.management.jmxremote.port=9999
+-Dcom.sun.management.jmxremote.ssl=false
+-Dcom.sun.management.jmxremote.authenticate=false
+-Dcom.sun.management.jmxremote.local.only=false
+-Djava.rmi.server.hostname={{ ansible_default_ipv4.address }}
+
+# Additional security
+-Djava.security.egd=file:/dev/urandom
+
+# Timezone
+-Duser.timezone=UTC

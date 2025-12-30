@@ -1,0 +1,19 @@
+---
+# AWX role handlers
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Restart AWX
+  ansible.builtin.systemd:
+    name: awx
+    state: restarted
+
+- name: Restart AWX web
+  community.docker.docker_compose:
+    project_src: /var/lib/awx
+    services:
+      - awx_web
+    state: present
+    restarted: yes

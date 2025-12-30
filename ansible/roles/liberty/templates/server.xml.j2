@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Liberty Server Configuration - Managed by Ansible -->
+<server description="{{ liberty_server_name }}">
+
+    <!-- Enable features -->
+    <featureManager>
+{% for feature in liberty_features %}
+        <feature>{{ feature }}</feature>
+{% endfor %}
+    </featureManager>
+
+    <!-- HTTP Endpoint -->
+    <httpEndpoint id="defaultHttpEndpoint"
+                  host="*"
+                  httpPort="{{ liberty_http_port }}"
+{% if liberty_ssl_enabled %}
+                  httpsPort="{{ liberty_https_port }}"
+{% endif %}
+    />
+
+{% if liberty_ssl_enabled %}
+    <!-- SSL Configuration -->
+    <ssl id="defaultSSLConfig"
+         keyStoreRef="defaultKeyStore"
+         sslProtocol="TLSv1.2"/>
+
+    <keyStore id="defaultKeyStore"
+              location="${server.config.dir}/resources/security/key.p12"
+              type="PKCS12"
+              password="{{ liberty_keystore_password }}"/>
+{% endif %}
+
+    <!-- Application Manager -->
+    <applicationManager autoExpand="{{ liberty_app_extract | string | lower }}"/>
+
+    <!-- Connection Manager -->
+    <connectionManager maxPoolSize="{{ liberty_max_connections }}"
+                       connectionTimeout="{{ liberty_connection_timeout }}"/>
+
+    <!-- Session Configuration -->
+    <httpSession invalidationTimeout="{{ liberty_session_timeout }}"
+                 cookieSecure="{{ liberty_ssl_enabled | string | lower }}"
+                 cookieHttpOnly="true"/>
+
+    <!-- Logging -->
+    <logging consoleLogLevel="{{ liberty_log_level }}"
+             consoleFormat="simple"
+             maxFileSize="{{ liberty_log_max_size }}"
+             maxFiles="{{ liberty_log_max_files }}"/>
+
+    <!-- Health Check Endpoints (MicroProfile Health) -->
+    <mpHealth authentication="false"/>
+
+    <!-- Metrics (MicroProfile Metrics) -->
+    <mpMetrics authentication="false"/>
+
+    <!-- Monitor -->
+    <monitor filter="WebContainer,JVM,ThreadPool,ConnectionPool"/>
+
+{% for datasource in liberty_datasources %}
+    <!-- Data Source: {{ datasource.id }} -->
+    <dataSource id="{{ datasource.id }}" jndiName="{{ datasource.jndi_name }}">
+        <jdbcDriver libraryRef="{{ datasource.id }}Lib"/>
+        <properties.postgresql serverName="{{ datasource.url | regex_replace('jdbc:postgresql://([^:/]+).*', '\\1') }}"
+                               portNumber="{{ datasource.url | regex_replace('.*:([0-9]+)/.*', '\\1') | default('5432') }}"
+                               databaseName="{{ datasource.url | regex_replace('.*/([^?]+).*', '\\1') }}"
+                               user="{{ datasource.user }}"
+                               password="{{ datasource.password }}"/>
+    </dataSource>
+    <library id="{{ datasource.id }}Lib">
+        <fileset dir="${shared.resource.dir}/jdbc" includes="postgresql-*.jar"/>
+    </library>
+{% endfor %}
+
+{% for app in liberty_applications %}
+    <!-- Application: {{ app.name }} -->
+    <webApplication id="{{ app.name }}"
+                    location="{{ app.name }}.war"
+                    contextRoot="{{ app.context_root }}"
+                    name="{{ app.name }}"/>
+{% endfor %}
+
+</server>

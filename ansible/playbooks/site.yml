@@ -1,0 +1,36 @@
+---
+# Master playbook - deploys complete infrastructure
+# Usage: ansible-playbook playbooks/site.yml -e "env=prod"
+
+- name: Apply common configuration to all hosts
+  hosts: all
+  become: yes
+  roles:
+    - common
+    - node_exporter
+  tags:
+    - common
+
+- name: Configure AWX servers
+  hosts: awx
+  become: yes
+  roles:
+    - awx
+  tags:
+    - awx
+
+- name: Configure Monitoring servers
+  hosts: monitoring
+  become: yes
+  roles:
+    - monitoring
+  tags:
+    - monitoring
+
+- name: Configure Liberty servers
+  hosts: liberty
+  become: yes
+  roles:
+    - liberty
+  tags:
+    - liberty

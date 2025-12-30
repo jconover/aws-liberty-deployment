@@ -1,0 +1,17 @@
+# System limits - managed by Ansible
+
+# Increase file descriptor limits
+* soft nofile 65535
+* hard nofile 65535
+
+# Increase process limits
+* soft nproc 65535
+* hard nproc 65535
+
+# Core dump settings (disabled for production)
+* soft core 0
+* hard core 0
+
+# Memory lock limits (for Java applications)
+* soft memlock unlimited
+* hard memlock unlimited

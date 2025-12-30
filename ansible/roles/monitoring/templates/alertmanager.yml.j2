@@ -1,0 +1,61 @@
+# Alertmanager Configuration - Managed by Ansible
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: {{ alertmanager_route.group_by | to_json }}
+  group_wait: {{ alertmanager_route.group_wait }}
+  group_interval: {{ alertmanager_route.group_interval }}
+  repeat_interval: {{ alertmanager_route.repeat_interval }}
+  receiver: {{ alertmanager_route.receiver }}
+{% if alertmanager_route.routes is defined %}
+  routes:
+{% for route in alertmanager_route.routes %}
+    - match:
+{% for key, value in route.match.items() %}
+        {{ key }}: {{ value }}
+{% endfor %}
+      receiver: {{ route.receiver }}
+{% if route.continue is defined %}
+      continue: {{ route.continue | string | lower }}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+receivers:
+{% for receiver in alertmanager_receivers %}
+  - name: '{{ receiver.name }}'
+{% if receiver.email_configs is defined and receiver.email_configs | length > 0 %}
+    email_configs:
+{% for email in receiver.email_configs %}
+      - to: '{{ email.to }}'
+        from: '{{ email.from }}'
+        smarthost: '{{ email.smarthost }}'
+{% if email.auth_username is defined and email.auth_username != '' %}
+        auth_username: '{{ email.auth_username }}'
+        auth_password: '{{ email.auth_password }}'
+{% endif %}
+        require_tls: true
+{% endfor %}
+{% endif %}
+{% if receiver.slack_configs is defined %}
+    slack_configs:
+{% for slack in receiver.slack_configs %}
+      - api_url: '{{ slack.api_url }}'
+        channel: '{{ slack.channel }}'
+{% endfor %}
+{% endif %}
+{% if receiver.webhook_configs is defined %}
+    webhook_configs:
+{% for webhook in receiver.webhook_configs %}
+      - url: '{{ webhook.url }}'
+{% endfor %}
+{% endif %}
+{% endfor %}
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance']

@@ -1,0 +1,80 @@
+# AWS EC2 Dynamic Inventory Configuration
+# This inventory automatically discovers EC2 instances based on tags
+
+plugin: aws_ec2
+
+# AWS regions to query
+regions:
+  - us-east-1
+
+# Strict mode - fail on errors
+strict: False
+
+# Filter instances by tags
+filters:
+  tag:Project: liberty-platform
+  instance-state-name: running
+
+# How to name hosts
+hostnames:
+  - tag:Name
+  - private-ip-address
+
+# Compose additional variables
+compose:
+  ansible_host: private_ip_address
+  ansible_user: ec2-user
+  ec2_instance_id: instance_id
+  ec2_private_ip: private_ip_address
+  ec2_public_ip: public_ip_address | default('')
+  ec2_instance_type: instance_type
+  ec2_availability_zone: placement.availability_zone
+  ec2_environment: tags.Environment
+
+# Create groups based on tags and attributes
+keyed_groups:
+  # Group by Environment tag
+  - key: tags.Environment
+    prefix: env
+    separator: _
+
+  # Group by Role tag
+  - key: tags.Role
+    prefix: role
+    separator: _
+
+  # Group by instance type
+  - key: instance_type
+    prefix: type
+    separator: _
+
+  # Group by availability zone
+  - key: placement.availability_zone
+    prefix: az
+    separator: _
+
+# Static groups
+groups:
+  # All AWX servers
+  awx:
+    tags.Role == 'awx'
+
+  # All monitoring servers
+  monitoring:
+    tags.Role == 'monitoring'
+
+  # All Liberty servers
+  liberty:
+    tags.Role == 'liberty'
+
+  # All bastion hosts
+  bastion:
+    tags.Role == 'bastion'
+
+  # Production environment
+  production:
+    tags.Environment == 'prod'
+
+  # Development environment
+  development:
+    tags.Environment == 'dev'

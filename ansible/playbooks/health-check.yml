@@ -1,0 +1,103 @@
+---
+# Health Check Playbook
+# Checks health status of Liberty servers and reports results
+# Usage: ansible-playbook playbooks/health-check.yml -l liberty
+
+- name: Liberty Server Health Check
+  hosts: liberty
+  gather_facts: yes
+  become: no
+
+  vars:
+    health_check_timeout: 10
+
+  tasks:
+    - name: Check Liberty service status
+      ansible.builtin.systemd:
+        name: liberty
+      register: liberty_service
+      become: yes
+      ignore_errors: yes
+
+    - name: Check Liberty health endpoint
+      ansible.builtin.uri:
+        url: "http://localhost:{{ liberty_http_port | default(9080) }}{{ liberty_health_endpoint | default('/health') }}"
+        timeout: "{{ health_check_timeout }}"
+        status_code: [200, 503]
+      register: health_endpoint
+      ignore_errors: yes
+
+    - name: Check Liberty ready endpoint
+      ansible.builtin.uri:
+        url: "http://localhost:{{ liberty_http_port | default(9080) }}{{ liberty_ready_endpoint | default('/health/ready') }}"
+        timeout: "{{ health_check_timeout }}"
+        status_code: [200, 503]
+      register: ready_endpoint
+      ignore_errors: yes
+
+    - name: Check node_exporter
+      ansible.builtin.uri:
+        url: "http://localhost:{{ node_exporter_port | default(9100) }}/metrics"
+        timeout: "{{ health_check_timeout }}"
+        status_code: 200
+      register: node_exporter
+      ignore_errors: yes
+
+    - name: Get disk usage
+      ansible.builtin.shell: df -h / | tail -1 | awk '{print $5}'
+      register: disk_usage
+      changed_when: false
+
+    - name: Get memory usage
+      ansible.builtin.shell: free | grep Mem | awk '{printf "%.1f", $3/$2 * 100}'
+      register: memory_usage
+      changed_when: false
+
+    - name: Get CPU load
+      ansible.builtin.shell: cat /proc/loadavg | awk '{print $1}'
+      register: cpu_load
+      changed_when: false
+
+    - name: Compile health report
+      ansible.builtin.set_fact:
+        health_report:
+          hostname: "{{ inventory_hostname }}"
+          ip_address: "{{ ansible_default_ipv4.address }}"
+          liberty_service: "{{ liberty_service.status.ActiveState | default('unknown') }}"
+          health_endpoint: "{{ 'UP' if health_endpoint.status == 200 else 'DOWN' }}"
+          ready_endpoint: "{{ 'UP' if ready_endpoint.status == 200 else 'DOWN' }}"
+          node_exporter: "{{ 'UP' if node_exporter.status == 200 else 'DOWN' }}"
+          disk_usage: "{{ disk_usage.stdout }}"
+          memory_usage: "{{ memory_usage.stdout }}%"
+          cpu_load: "{{ cpu_load.stdout }}"
+
+    - name: Display health report
+      ansible.builtin.debug:
+        msg: |
+
+          ============================================
+          Health Report: {{ health_report.hostname }}
+          ============================================
+          IP Address:      {{ health_report.ip_address }}
+          Liberty Service: {{ health_report.liberty_service }}
+          Health Endpoint: {{ health_report.health_endpoint }}
+          Ready Endpoint:  {{ health_report.ready_endpoint }}
+          Node Exporter:   {{ health_report.node_exporter }}
+          Disk Usage:      {{ health_report.disk_usage }}
+          Memory Usage:    {{ health_report.memory_usage }}
+          CPU Load (1m):   {{ health_report.cpu_load }}
+          ============================================
+
+    - name: Set overall status
+      ansible.builtin.set_fact:
+        overall_healthy: "{{ health_report.liberty_service == 'active' and health_report.health_endpoint == 'UP' }}"
+
+    - name: Fail if unhealthy
+      ansible.builtin.fail:
+        msg: "Server {{ inventory_hostname }} is unhealthy!"
+      when:
+        - fail_on_unhealthy | default(false) | bool
+        - not overall_healthy
+
+  tags:
+    - health-check

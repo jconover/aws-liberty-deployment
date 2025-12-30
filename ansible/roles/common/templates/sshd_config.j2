@@ -1,0 +1,53 @@
+# SSH configuration - managed by Ansible
+
+# Basic settings
+Port 22
+Protocol 2
+AddressFamily any
+ListenAddress 0.0.0.0
+
+# Logging
+SyslogFacility AUTHPRIV
+LogLevel INFO
+
+# Authentication
+PermitRootLogin {{ ssh_permit_root_login }}
+PasswordAuthentication {{ ssh_password_authentication }}
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+MaxAuthTries {{ ssh_max_auth_tries }}
+MaxSessions 10
+
+# Disable unused authentication methods
+ChallengeResponseAuthentication no
+GSSAPIAuthentication yes
+GSSAPICleanupCredentials no
+
+# Session settings
+ClientAliveInterval 300
+ClientAliveCountMax 2
+TCPKeepAlive yes
+UseDNS no
+
+# Disable forwarding (can be enabled per-host if needed)
+AllowAgentForwarding yes
+AllowTcpForwarding yes
+X11Forwarding no
+
+# Security
+PermitEmptyPasswords no
+PermitUserEnvironment no
+StrictModes yes
+HostbasedAuthentication no
+
+# Banner
+Banner none
+
+# Subsystem
+Subsystem sftp /usr/libexec/openssh/sftp-server
+
+# Accept locale-related environment variables
+AcceptEnv LANG LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES
+AcceptEnv LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT
+AcceptEnv LC_IDENTIFICATION LC_ALL LANGUAGE
+AcceptEnv XMODIFIERS

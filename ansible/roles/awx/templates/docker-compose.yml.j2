@@ -1,0 +1,98 @@
+---
+# AWX Docker Compose Configuration - Managed by Ansible
+version: '3.8'
+
+services:
+  awx_web:
+    image: quay.io/ansible/awx:{{ awx_version }}
+    container_name: awx_web
+    hostname: awxweb
+    user: root
+    restart: unless-stopped
+    ports:
+      - "8052:8052"
+    volumes:
+      - /etc/awx/settings.py:/etc/tower/settings.py:ro
+      - /etc/awx/SECRET_KEY:/etc/tower/SECRET_KEY:ro
+      - /etc/awx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - {{ awx_projects_dir }}:/var/lib/awx/projects:rw
+      - {{ awx_job_artifacts_dir }}:/var/lib/awx/job_artifacts:rw
+    environment:
+      - DATABASE_USER=awx
+      - DATABASE_PASSWORD={{ awx_postgres_password }}
+      - DATABASE_NAME=awx
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - AWX_ADMIN_USER={{ awx_admin_user }}
+      - AWX_ADMIN_PASSWORD={{ awx_admin_password }}
+      - AWX_ADMIN_EMAIL={{ awx_admin_email }}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - awx
+
+  awx_task:
+    image: quay.io/ansible/awx:{{ awx_version }}
+    container_name: awx_task
+    hostname: awx
+    user: root
+    restart: unless-stopped
+    command: launch_awx_task.sh
+    volumes:
+      - /etc/awx/settings.py:/etc/tower/settings.py:ro
+      - /etc/awx/SECRET_KEY:/etc/tower/SECRET_KEY:ro
+      - {{ awx_projects_dir }}:/var/lib/awx/projects:rw
+      - {{ awx_job_artifacts_dir }}:/var/lib/awx/job_artifacts:rw
+    environment:
+      - DATABASE_USER=awx
+      - DATABASE_PASSWORD={{ awx_postgres_password }}
+      - DATABASE_NAME=awx
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - AWX_SKIP_MIGRATIONS=1
+      - SUPERVISOR_WEB_CONFIG_PATH=/etc/supervisord.conf
+    depends_on:
+      - awx_web
+      - postgres
+      - redis
+    networks:
+      - awx
+
+  awx_ee:
+    image: {{ awx_default_ee_image }}
+    container_name: awx_ee
+    hostname: awxee
+    user: root
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+    volumes:
+      - {{ awx_projects_dir }}:/var/lib/awx/projects:rw
+    networks:
+      - awx
+
+  postgres:
+    image: postgres:{{ awx_postgres_version }}
+    container_name: awx_postgres
+    restart: unless-stopped
+    volumes:
+      - {{ awx_postgres_data_dir }}:/var/lib/postgresql/data:Z
+    environment:
+      - POSTGRES_USER=awx
+      - POSTGRES_PASSWORD={{ awx_postgres_password }}
+      - POSTGRES_DB=awx
+    networks:
+      - awx
+
+  redis:
+    image: redis:7
+    container_name: awx_redis
+    restart: unless-stopped
+    command: redis-server --requirepass {{ awx_redis_password }}
+    networks:
+      - awx
+
+networks:
+  awx:
+    driver: bridge

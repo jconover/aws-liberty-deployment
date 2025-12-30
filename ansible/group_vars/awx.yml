@@ -1,0 +1,109 @@
+# AWX-specific variables
+
+# AWX version
+awx_version: "23.5.0"
+
+# AWX admin credentials (override in vault)
+awx_admin_user: admin
+awx_admin_password: "{{ vault_awx_admin_password | default('ChangeMe123!') }}"
+awx_admin_email: admin@example.com
+
+# AWX web settings
+awx_web_port: 443
+awx_web_http_port: 80
+
+# AWX database settings
+awx_postgres_version: "15"
+awx_postgres_data_dir: /var/lib/awx/pgdata
+awx_postgres_password: "{{ vault_awx_postgres_password | default('ChangeMe123!') }}"
+
+# AWX Redis settings
+awx_redis_password: "{{ vault_awx_redis_password | default('ChangeMe123!') }}"
+
+# AWX project settings
+awx_projects_dir: /var/lib/awx/projects
+awx_job_artifacts_dir: /var/lib/awx/job_artifacts
+
+# AWX execution environment
+awx_default_ee_image: "quay.io/ansible/awx-ee:latest"
+
+# AWX settings
+awx_settings:
+  # General
+  AWX_TASK_ENV:
+    AWS_DEFAULT_REGION: "{{ aws_region }}"
+  DEFAULT_EXECUTION_ENVIRONMENT: "AWX EE (latest)"
+
+  # Security
+  SESSIONS_PER_USER: 5
+  SESSION_COOKIE_AGE: 1800
+
+  # Logging
+  LOG_AGGREGATOR_ENABLED: false
+
+  # Job settings
+  DEFAULT_JOB_TIMEOUT: 3600
+  MAX_FORKS: 200
+
+# AWX organizations to create
+awx_organizations:
+  - name: "{{ organization }}"
+    description: "Main organization for Liberty Platform"
+
+# AWX teams to create
+awx_teams:
+  - name: Platform Admins
+    organization: "{{ organization }}"
+    description: "Platform administration team"
+  - name: Developers
+    organization: "{{ organization }}"
+    description: "Development team"
+  - name: Operations
+    organization: "{{ organization }}"
+    description: "Operations team"
+
+# AWX credential types
+awx_credential_types:
+  - name: AWS Credentials
+    kind: cloud
+    inputs:
+      fields:
+        - id: aws_access_key
+          type: string
+          label: AWS Access Key
+        - id: aws_secret_key
+          type: string
+          label: AWS Secret Key
+          secret: true
+        - id: aws_region
+          type: string
+          label: AWS Region
+    injectors:
+      env:
+        AWS_ACCESS_KEY_ID: "{{ '{{' }} aws_access_key {{ '}}' }}"
+        AWS_SECRET_ACCESS_KEY: "{{ '{{' }} aws_secret_key {{ '}}' }}"
+        AWS_DEFAULT_REGION: "{{ '{{' }} aws_region {{ '}}' }}"
+
+# AWX inventories
+awx_inventories:
+  - name: AWS EC2 Dynamic
+    organization: "{{ organization }}"
+    description: "Dynamic inventory from AWS EC2"
+    kind: smart
+  - name: Liberty Servers
+    organization: "{{ organization }}"
+    description: "Liberty application servers"
+    kind: constructed
+
+# AWX projects
+awx_projects:
+  - name: Liberty Deployment
+    organization: "{{ organization }}"
+    description: "Liberty server deployment playbooks"
+    scm_type: git
+    scm_url: "{{ awx_project_repo | default('https://github.com/org/aws-liberty-deployment.git') }}"
+    scm_branch: main
+    scm_update_on_launch: true
+
+# AWX job templates (defined separately for detail)
+awx_job_templates: []  # Populated by role

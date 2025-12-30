@@ -1,0 +1,176 @@
+---
+# AWX Installation and Configuration Role
+
+- name: Include Docker installation
+  ansible.builtin.include_role:
+    name: docker
+  tags:
+    - awx
+    - docker
+
+- name: Create AWX directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /var/lib/awx
+    - /var/lib/awx/projects
+    - /var/lib/awx/job_artifacts
+    - /var/lib/awx/pgdata
+    - /var/lib/awx/redis
+    - /etc/awx
+  tags:
+    - awx
+
+- name: Install AWX operator prerequisites
+  ansible.builtin.pip:
+    name:
+      - kubernetes
+      - openshift
+    state: present
+  tags:
+    - awx
+
+- name: Create AWX docker-compose configuration
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: /var/lib/awx/docker-compose.yml
+    owner: root
+    group: root
+    mode: "0600"
+  tags:
+    - awx
+
+- name: Create AWX environment file
+  ansible.builtin.template:
+    src: awx.env.j2
+    dest: /var/lib/awx/.env
+    owner: root
+    group: root
+    mode: "0600"
+  tags:
+    - awx
+
+- name: Create AWX nginx configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/awx/nginx.conf
+    owner: root
+    group: root
+    mode: "0644"
+  tags:
+    - awx
+
+- name: Create AWX settings file
+  ansible.builtin.template:
+    src: settings.py.j2
+    dest: /etc/awx/settings.py
+    owner: root
+    group: root
+    mode: "0600"
+  tags:
+    - awx
+
+- name: Create AWX credentials encryption key
+  ansible.builtin.shell: |
+    openssl rand -base64 32 > /etc/awx/SECRET_KEY
+  args:
+    creates: /etc/awx/SECRET_KEY
+  tags:
+    - awx
+
+- name: Secure AWX secret key
+  ansible.builtin.file:
+    path: /etc/awx/SECRET_KEY
+    owner: root
+    group: root
+    mode: "0600"
+  tags:
+    - awx
+
+- name: Create AWX systemd service
+  ansible.builtin.template:
+    src: awx.service.j2
+    dest: /etc/systemd/system/awx.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags:
+    - awx
+
+- name: Start AWX service
+  ansible.builtin.systemd:
+    name: awx
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  tags:
+    - awx
+
+- name: Wait for AWX to be ready
+  ansible.builtin.uri:
+    url: "http://localhost:8052/api/v2/ping/"
+    status_code: 200
+  register: awx_health
+  until: awx_health.status == 200
+  retries: 60
+  delay: 10
+  tags:
+    - awx
+
+- name: Configure AWX post-installation
+  block:
+    - name: Create AWX organizations
+      awx.awx.organization:
+        name: "{{ item.name }}"
+        description: "{{ item.description | default('') }}"
+        state: present
+        controller_host: "http://localhost:8052"
+        controller_username: "{{ awx_admin_user }}"
+        controller_password: "{{ awx_admin_password }}"
+      loop: "{{ awx_organizations }}"
+
+    - name: Create AWX teams
+      awx.awx.team:
+        name: "{{ item.name }}"
+        organization: "{{ item.organization }}"
+        description: "{{ item.description | default('') }}"
+        state: present
+        controller_host: "http://localhost:8052"
+        controller_username: "{{ awx_admin_user }}"
+        controller_password: "{{ awx_admin_password }}"
+      loop: "{{ awx_teams }}"
+
+    - name: Create AWX inventories
+      awx.awx.inventory:
+        name: "{{ item.name }}"
+        organization: "{{ item.organization }}"
+        description: "{{ item.description | default('') }}"
+        state: present
+        controller_host: "http://localhost:8052"
+        controller_username: "{{ awx_admin_user }}"
+        controller_password: "{{ awx_admin_password }}"
+      loop: "{{ awx_inventories }}"
+
+    - name: Create AWX projects
+      awx.awx.project:
+        name: "{{ item.name }}"
+        organization: "{{ item.organization }}"
+        description: "{{ item.description | default('') }}"
+        scm_type: "{{ item.scm_type }}"
+        scm_url: "{{ item.scm_url }}"
+        scm_branch: "{{ item.scm_branch | default('main') }}"
+        scm_update_on_launch: "{{ item.scm_update_on_launch | default(true) }}"
+        state: present
+        controller_host: "http://localhost:8052"
+        controller_username: "{{ awx_admin_user }}"
+        controller_password: "{{ awx_admin_password }}"
+      loop: "{{ awx_projects }}"
+  when: configure_awx | default(true)
+  tags:
+    - awx
+    - awx-config

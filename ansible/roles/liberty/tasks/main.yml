@@ -1,0 +1,185 @@
+---
+# Liberty Server Installation and Configuration Role
+
+- name: Create Liberty user
+  ansible.builtin.user:
+    name: "{{ liberty_user }}"
+    group: "{{ liberty_group }}"
+    system: yes
+    shell: /bin/bash
+    home: "{{ liberty_install_dir }}"
+    create_home: no
+  tags:
+    - liberty
+
+- name: Create Liberty group
+  ansible.builtin.group:
+    name: "{{ liberty_group }}"
+    system: yes
+  tags:
+    - liberty
+
+- name: Create Liberty directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ liberty_user }}"
+    group: "{{ liberty_group }}"
+    mode: "0755"
+  loop:
+    - "{{ liberty_install_dir }}"
+    - "{{ liberty_install_dir }}/downloads"
+    - /var/log/liberty
+  tags:
+    - liberty
+
+- name: Install Java (Amazon Corretto 17)
+  ansible.builtin.yum:
+    name:
+      - java-17-amazon-corretto
+      - java-17-amazon-corretto-devel
+    state: present
+  tags:
+    - liberty
+    - java
+
+- name: Set JAVA_HOME
+  ansible.builtin.lineinfile:
+    path: /etc/profile.d/java.sh
+    line: "export JAVA_HOME=/usr/lib/jvm/java-17-amazon-corretto"
+    create: yes
+    mode: "0644"
+  tags:
+    - liberty
+    - java
+
+- name: Download Open Liberty
+  ansible.builtin.get_url:
+    url: "{{ liberty_download_url }}"
+    dest: "{{ liberty_install_dir }}/downloads/openliberty-{{ liberty_version }}.zip"
+    owner: "{{ liberty_user }}"
+    group: "{{ liberty_group }}"
+    mode: "0644"
+  register: liberty_download
+  tags:
+    - liberty
+
+- name: Extract Open Liberty
+  ansible.builtin.unarchive:
+    src: "{{ liberty_install_dir }}/downloads/openliberty-{{ liberty_version }}.zip"
+    dest: "{{ liberty_install_dir }}"
+    remote_src: yes
+    owner: "{{ liberty_user }}"
+    group: "{{ liberty_group }}"
+  when: liberty_download.changed
+  tags:
+    - liberty
+
+- name: Create Liberty server
+  ansible.builtin.command:
+    cmd: "{{ liberty_wlp_dir }}/bin/server create {{ liberty_server_name }}"
+  args:
+    creates: "{{ liberty_servers_dir }}/{{ liberty_server_name }}"
+  become: yes
+  become_user: "{{ liberty_user }}"
+  tags:
+    - liberty
+
+- name: Configure Liberty server.xml
+  ansible.builtin.template:
+    src: server.xml.j2
+    dest: "{{ liberty_servers_dir }}/{{ liberty_server_name }}/server.xml"
+    owner: "{{ liberty_user }}"
+    group: "{{ liberty_group }}"
+    mode: "0644"
+  notify: Restart Liberty
+  tags:
+    - liberty
+    - liberty-config
+
+- name: Configure Liberty JVM options
+  ansible.builtin.template:
+    src: jvm.options.j2
+    dest: "{{ liberty_servers_dir }}/{{ liberty_server_name }}/jvm.options"
+    owner: "{{ liberty_user }}"
+    group: "{{ liberty_group }}"
+    mode: "0644"
+  notify: Restart Liberty
+  tags:
+    - liberty
+    - liberty-config
+
+- name: Configure Liberty bootstrap.properties
+  ansible.builtin.template:
+    src: bootstrap.properties.j2
+    dest: "{{ liberty_servers_dir }}/{{ liberty_server_name }}/bootstrap.properties"
+    owner: "{{ liberty_user }}"
+    group: "{{ liberty_group }}"
+    mode: "0644"
+  notify: Restart Liberty
+  tags:
+    - liberty
+    - liberty-config
+
+- name: Create SSL keystore
+  ansible.builtin.command:
+    cmd: >
+      keytool -genkeypair -alias default -keyalg RSA -keysize 2048
+      -validity 365 -keystore {{ liberty_servers_dir }}/{{ liberty_server_name }}/resources/security/key.p12
+      -storetype PKCS12 -storepass {{ liberty_keystore_password }}
+      -dname "CN={{ ansible_hostname }},O={{ organization }},C=US"
+  args:
+    creates: "{{ liberty_servers_dir }}/{{ liberty_server_name }}/resources/security/key.p12"
+  become: yes
+  become_user: "{{ liberty_user }}"
+  when: liberty_ssl_enabled
+  tags:
+    - liberty
+    - ssl
+
+- name: Create Liberty systemd service
+  ansible.builtin.template:
+    src: liberty.service.j2
+    dest: /etc/systemd/system/liberty.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart Liberty
+  tags:
+    - liberty
+
+- name: Enable and start Liberty service
+  ansible.builtin.systemd:
+    name: liberty
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  tags:
+    - liberty
+
+- name: Wait for Liberty to start
+  ansible.builtin.wait_for:
+    port: "{{ liberty_http_port }}"
+    host: 127.0.0.1
+    delay: 10
+    timeout: 120
+  tags:
+    - liberty
+
+- name: Verify Liberty health endpoint
+  ansible.builtin.uri:
+    url: "http://localhost:{{ liberty_http_port }}{{ liberty_health_endpoint }}"
+    status_code: [200, 503]  # 503 is OK if no apps deployed yet
+  register: health_check
+  ignore_errors: yes
+  tags:
+    - liberty
+    - verify
+
+- name: Display Liberty status
+  ansible.builtin.debug:
+    msg: "Liberty server is running on port {{ liberty_http_port }}"
+  tags:
+    - liberty

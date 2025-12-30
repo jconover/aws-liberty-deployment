@@ -1,0 +1,43 @@
+# Production Environment - Example Variables
+# Copy this file to terraform.tfvars and fill in the values
+
+aws_region   = "us-east-1"
+project_name = "liberty-platform"
+owner        = "platform-team"
+
+# VPC Configuration
+vpc_cidr = "10.0.0.0/16"
+az_count = 2
+
+# Access Control - IMPORTANT: Replace with your actual IP ranges
+# Never use 0.0.0.0/0 for SSH access in production
+allowed_ssh_cidrs = [
+  "10.0.0.0/8",           # Internal network
+  # "YOUR_OFFICE_IP/32",  # Your office IP
+]
+
+allowed_web_cidrs = [
+  "10.0.0.0/8",           # Internal network for AWX/Grafana access
+  # "YOUR_OFFICE_IP/32",  # Your office IP
+]
+
+# ALB can be more open, but consider restricting in production
+alb_allowed_cidrs = ["0.0.0.0/0"]
+
+# SSH Key - must exist in AWS
+ssh_key_name = "liberty-platform-prod"
+
+# Instance Sizing
+awx_instance_type        = "t3.large"
+monitoring_instance_type = "t3.large"
+liberty_instance_type    = "t3.medium"
+liberty_instance_count   = 2
+liberty_data_volume_size = 100
+
+# GitHub OIDC for CI/CD (optional)
+create_github_oidc_provider = false
+# github_org  = "your-org"
+# github_repo = "aws-liberty-deployment"
+
+# Alerting
+alert_email = "platform-alerts@example.com"

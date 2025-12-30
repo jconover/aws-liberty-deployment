@@ -1,0 +1,157 @@
+---
+# Application Deployment Playbook
+# Deploys applications to Liberty servers
+# Usage: ansible-playbook playbooks/deploy-app.yml -e "app_name=myapp app_version=1.0.0"
+
+- name: Deploy Application to Liberty Servers
+  hosts: liberty
+  become: yes
+  serial: "{{ rolling_update_batch | default(1) }}"  # Rolling update by default
+
+  vars:
+    # Required variables (passed via -e or AWX)
+    # app_name: myapp
+    # app_version: 1.0.0
+    # artifact_source: s3 or http or local
+    # artifact_url: s3://bucket/path or http://url or /local/path
+
+    deployment_timeout: 120
+    health_check_retries: 12
+    health_check_delay: 10
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - app_name is defined
+          - app_version is defined
+        fail_msg: "Required variables: app_name, app_version"
+
+    - name: Set artifact path
+      ansible.builtin.set_fact:
+        app_artifact: "{{ app_name }}-{{ app_version }}.war"
+        app_context_root: "/{{ app_name }}"
+        app_health_check: "/{{ app_name }}{{ app_health_path | default('/health') }}"
+
+    - name: Gather Liberty facts
+      ansible.builtin.stat:
+        path: "{{ liberty_apps_dir }}"
+      register: apps_dir
+
+  tasks:
+    - name: Create deployment backup
+      ansible.builtin.copy:
+        src: "{{ liberty_apps_dir }}/{{ app_name }}.war"
+        dest: "{{ liberty_apps_dir }}/{{ app_name }}.war.backup"
+        remote_src: yes
+      ignore_errors: yes
+      when: create_backup | default(true)
+
+    - name: Download artifact from S3
+      ansible.builtin.command:
+        cmd: >
+          aws s3 cp {{ artifact_url }}/{{ app_artifact }}
+          {{ liberty_apps_dir }}/{{ app_artifact }}
+      when: artifact_source | default('s3') == 's3'
+      notify: Restart Liberty
+
+    - name: Download artifact from HTTP
+      ansible.builtin.get_url:
+        url: "{{ artifact_url }}/{{ app_artifact }}"
+        dest: "{{ liberty_apps_dir }}/{{ app_artifact }}"
+        owner: "{{ liberty_user }}"
+        group: "{{ liberty_group }}"
+        mode: "0644"
+      when: artifact_source | default('s3') == 'http'
+      notify: Restart Liberty
+
+    - name: Copy local artifact
+      ansible.builtin.copy:
+        src: "{{ artifact_url }}/{{ app_artifact }}"
+        dest: "{{ liberty_apps_dir }}/{{ app_artifact }}"
+        owner: "{{ liberty_user }}"
+        group: "{{ liberty_group }}"
+        mode: "0644"
+      when: artifact_source | default('s3') == 'local'
+      notify: Restart Liberty
+
+    - name: Set artifact permissions
+      ansible.builtin.file:
+        path: "{{ liberty_apps_dir }}/{{ app_artifact }}"
+        owner: "{{ liberty_user }}"
+        group: "{{ liberty_group }}"
+        mode: "0644"
+
+    - name: Flush handlers to restart Liberty
+      ansible.builtin.meta: flush_handlers
+
+    - name: Wait for Liberty to start
+      ansible.builtin.wait_for:
+        port: "{{ liberty_http_port }}"
+        host: 127.0.0.1
+        delay: 10
+        timeout: "{{ deployment_timeout }}"
+
+    - name: Verify application health
+      ansible.builtin.uri:
+        url: "http://localhost:{{ liberty_http_port }}{{ app_health_check }}"
+        status_code: 200
+        timeout: 10
+      register: health_result
+      until: health_result.status == 200
+      retries: "{{ health_check_retries }}"
+      delay: "{{ health_check_delay }}"
+
+  handlers:
+    - name: Restart Liberty
+      ansible.builtin.systemd:
+        name: liberty
+        state: restarted
+
+  post_tasks:
+    - name: Remove backup on success
+      ansible.builtin.file:
+        path: "{{ liberty_apps_dir }}/{{ app_name }}.war.backup"
+        state: absent
+      when:
+        - health_result.status == 200
+        - remove_backup_on_success | default(true)
+
+    - name: Display deployment summary
+      ansible.builtin.debug:
+        msg: |
+          Application Deployment Complete
+          --------------------------------
+          Application: {{ app_name }}
+          Version: {{ app_version }}
+          Host: {{ inventory_hostname }}
+          URL: http://{{ ansible_default_ipv4.address }}:{{ liberty_http_port }}{{ app_context_root }}
+          Health: {{ 'HEALTHY' if health_result.status == 200 else 'UNHEALTHY' }}
+
+  rescue:
+    - name: Rollback - Restore backup
+      ansible.builtin.copy:
+        src: "{{ liberty_apps_dir }}/{{ app_name }}.war.backup"
+        dest: "{{ liberty_apps_dir }}/{{ app_name }}.war"
+        remote_src: yes
+      when: create_backup | default(true)
+      ignore_errors: yes
+
+    - name: Rollback - Restart Liberty
+      ansible.builtin.systemd:
+        name: liberty
+        state: restarted
+      ignore_errors: yes
+
+    - name: Fail with error message
+      ansible.builtin.fail:
+        msg: |
+          Deployment failed! Rollback attempted.
+          Application: {{ app_name }}
+          Version: {{ app_version }}
+          Host: {{ inventory_hostname }}
+          Check Liberty logs for details.
+
+  tags:
+    - deploy
+    - application

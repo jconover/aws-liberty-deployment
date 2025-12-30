@@ -1,0 +1,20 @@
+# Prometheus Alert Rules - Managed by Ansible
+groups:
+{% for group in prometheus_alert_rules %}
+  - name: {{ group.name }}
+    rules:
+{% for rule in group.rules %}
+      - alert: {{ rule.alert }}
+        expr: {{ rule.expr }}
+        for: {{ rule.for }}
+        labels:
+{% for key, value in rule.labels.items() %}
+          {{ key }}: {{ value }}
+{% endfor %}
+        annotations:
+{% for key, value in rule.annotations.items() %}
+          {{ key }}: "{{ value }}"
+{% endfor %}
+
+{% endfor %}
+{% endfor %}

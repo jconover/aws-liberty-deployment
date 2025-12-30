@@ -1,0 +1,59 @@
+---
+# Liberty Server Deployment Playbook
+# This playbook provisions and configures Liberty application servers
+# Usage: ansible-playbook playbooks/deploy-liberty.yml -l liberty
+
+- name: Deploy Liberty Application Servers
+  hosts: liberty
+  become: yes
+  serial: "{{ rolling_update_batch | default('100%') }}"
+
+  pre_tasks:
+    - name: Verify connectivity
+      ansible.builtin.ping:
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    - name: Check if Liberty is already installed
+      ansible.builtin.stat:
+        path: "{{ liberty_wlp_dir }}/bin/server"
+      register: liberty_installed
+
+    - name: Display installation status
+      ansible.builtin.debug:
+        msg: "Liberty is {{ 'already installed' if liberty_installed.stat.exists else 'not installed' }}"
+
+  roles:
+    - common
+    - node_exporter
+    - liberty
+
+  post_tasks:
+    - name: Verify Liberty is running
+      ansible.builtin.systemd:
+        name: liberty
+        state: started
+      register: liberty_service
+
+    - name: Check Liberty health endpoint
+      ansible.builtin.uri:
+        url: "http://localhost:{{ liberty_http_port }}{{ liberty_health_endpoint }}"
+        status_code: [200, 503]
+      register: health_check
+      ignore_errors: yes
+
+    - name: Display deployment summary
+      ansible.builtin.debug:
+        msg: |
+          Liberty Server Deployment Complete
+          ----------------------------------
+          Host: {{ inventory_hostname }}
+          Private IP: {{ ansible_default_ipv4.address }}
+          HTTP Port: {{ liberty_http_port }}
+          HTTPS Port: {{ liberty_https_port }}
+          Health Status: {{ 'Healthy' if health_check.status == 200 else 'No apps deployed' }}
+          Service Status: {{ liberty_service.status.ActiveState }}
+
+  tags:
+    - liberty

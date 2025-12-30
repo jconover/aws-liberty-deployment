@@ -1,0 +1,79 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform/
+.terraform.lock.hcl
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+terraform.tfvars
+*.auto.tfvars
+
+# Ansible
+*.retry
+ansible/inventory/hosts.yml.local
+ansible/group_vars/vault.yml
+ansible/.vault_pass
+
+# SSH Keys
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+.env
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Secrets (never commit!)
+secrets/
+.secrets
+*.secret
+credentials.json
+.env.local
+.env.*.local
+
+# Build artifacts
+dist/
+build/
+*.war
+*.jar
+*.ear
+
+# Cache
+.cache/
+*.cache
+/tmp/ansible_facts_cache/
+
+# Test output
+.coverage
+htmlcov/
+.pytest_cache/

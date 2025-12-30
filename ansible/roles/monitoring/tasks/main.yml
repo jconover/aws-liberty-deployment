@@ -1,0 +1,173 @@
+---
+# Monitoring Stack Installation Role (Prometheus, Grafana, Alertmanager)
+
+- name: Include Docker installation
+  ansible.builtin.include_role:
+    name: docker
+  tags:
+    - monitoring
+    - docker
+
+- name: Create monitoring directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /etc/prometheus
+    - /etc/prometheus/rules
+    - /etc/grafana
+    - /etc/grafana/provisioning
+    - /etc/grafana/provisioning/dashboards
+    - /etc/grafana/provisioning/datasources
+    - /etc/alertmanager
+    - /var/lib/prometheus
+    - /var/lib/grafana
+    - /var/lib/alertmanager
+  tags:
+    - monitoring
+
+- name: Set Prometheus data directory permissions
+  ansible.builtin.file:
+    path: /var/lib/prometheus
+    owner: 65534  # nobody user in Prometheus container
+    group: 65534
+    mode: "0755"
+  tags:
+    - monitoring
+
+- name: Set Grafana data directory permissions
+  ansible.builtin.file:
+    path: /var/lib/grafana
+    owner: 472  # grafana user in container
+    group: 472
+    mode: "0755"
+  tags:
+    - monitoring
+
+- name: Create Prometheus configuration
+  ansible.builtin.template:
+    src: prometheus.yml.j2
+    dest: /etc/prometheus/prometheus.yml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload Prometheus
+  tags:
+    - monitoring
+    - prometheus
+
+- name: Create Prometheus alert rules
+  ansible.builtin.template:
+    src: alert_rules.yml.j2
+    dest: /etc/prometheus/rules/alerts.yml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload Prometheus
+  tags:
+    - monitoring
+    - prometheus
+
+- name: Create Alertmanager configuration
+  ansible.builtin.template:
+    src: alertmanager.yml.j2
+    dest: /etc/alertmanager/alertmanager.yml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Alertmanager
+  tags:
+    - monitoring
+    - alertmanager
+
+- name: Create Grafana datasources configuration
+  ansible.builtin.template:
+    src: grafana-datasources.yml.j2
+    dest: /etc/grafana/provisioning/datasources/datasources.yml
+    owner: 472
+    group: 472
+    mode: "0644"
+  tags:
+    - monitoring
+    - grafana
+
+- name: Create Grafana dashboards configuration
+  ansible.builtin.template:
+    src: grafana-dashboards.yml.j2
+    dest: /etc/grafana/provisioning/dashboards/dashboards.yml
+    owner: 472
+    group: 472
+    mode: "0644"
+  tags:
+    - monitoring
+    - grafana
+
+- name: Copy Grafana dashboards
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: /etc/grafana/provisioning/dashboards/
+    owner: 472
+    group: 472
+    mode: "0644"
+  with_fileglob:
+    - files/dashboards/*.json
+  tags:
+    - monitoring
+    - grafana
+
+- name: Create monitoring docker-compose configuration
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: /etc/prometheus/docker-compose.yml
+    owner: root
+    group: root
+    mode: "0644"
+  tags:
+    - monitoring
+
+- name: Create monitoring systemd service
+  ansible.builtin.template:
+    src: monitoring.service.j2
+    dest: /etc/systemd/system/monitoring.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags:
+    - monitoring
+
+- name: Start monitoring stack
+  ansible.builtin.systemd:
+    name: monitoring
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  tags:
+    - monitoring
+
+- name: Wait for Prometheus to be ready
+  ansible.builtin.uri:
+    url: "http://localhost:{{ prometheus_port }}/-/ready"
+    status_code: 200
+  register: prometheus_ready
+  until: prometheus_ready.status == 200
+  retries: 30
+  delay: 5
+  tags:
+    - monitoring
+    - verify
+
+- name: Wait for Grafana to be ready
+  ansible.builtin.uri:
+    url: "http://localhost:{{ grafana_port }}/api/health"
+    status_code: 200
+  register: grafana_ready
+  until: grafana_ready.status == 200
+  retries: 30
+  delay: 5
+  tags:
+    - monitoring
+    - verify
