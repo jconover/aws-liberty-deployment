@@ -33,11 +33,11 @@
   tags:
     - liberty
 
-- name: Install Java (Amazon Corretto 17)
+- name: Install Java
   ansible.builtin.yum:
     name:
-      - java-17-amazon-corretto
-      - java-17-amazon-corretto-devel
+      - "{{ java_package_name }}"
+      - "{{ java_devel_package_name }}"
     state: present
   tags:
     - liberty
@@ -46,7 +46,7 @@
 - name: Set JAVA_HOME
   ansible.builtin.lineinfile:
     path: /etc/profile.d/java.sh
-    line: "export JAVA_HOME=/usr/lib/jvm/java-17-amazon-corretto"
+    line: "export JAVA_HOME={{ java_home_path }}"
     create: yes
     mode: "0644"
   tags:
@@ -121,17 +121,43 @@
     - liberty
     - liberty-config
 
-- name: Create SSL keystore
-  ansible.builtin.command:
-    cmd: >
-      keytool -genkeypair -alias default -keyalg RSA -keysize 2048
-      -validity 365 -keystore {{ liberty_servers_dir }}/{{ liberty_server_name }}/resources/security/key.p12
-      -storetype PKCS12 -storepass {{ liberty_keystore_password }}
-      -dname "CN={{ ansible_hostname }},O={{ organization }},C=US"
-  args:
-    creates: "{{ liberty_servers_dir }}/{{ liberty_server_name }}/resources/security/key.p12"
+- name: Generate a private key
+  community.crypto.openssl_privatekey:
+    path: "{{ liberty_key_path }}"
+    owner: "{{ liberty_user }}"
+    group: "{{ liberty_group }}"
+    mode: "0640"
   become: yes
-  become_user: "{{ liberty_user }}"
+  when: liberty_ssl_enabled
+  tags:
+    - liberty
+    - ssl
+
+- name: Generate a self-signed certificate
+  community.crypto.x509_certificate:
+    path: "{{ liberty_cert_path }}"
+    privatekey_path: "{{ liberty_key_path }}"
+    provider: selfsigned
+    owner: "{{ liberty_user }}"
+    group: "{{ liberty_group }}"
+    mode: "0644"
+  become: yes
+  when: liberty_ssl_enabled
+  tags:
+    - liberty
+    - ssl
+
+- name: Create SSL keystore
+  community.crypto.openssl_pkcs12:
+    action: export
+    path: "{{ liberty_keystore_path }}"
+    privatekey_path: "{{ liberty_key_path }}"
+    certificate_path: "{{ liberty_cert_path }}"
+    passphrase: "{{ liberty_keystore_password }}"
+    owner: "{{ liberty_user }}"
+    group: "{{ liberty_group }}"
+    mode: "0640"
+  become: yes
   when: liberty_ssl_enabled
   tags:
     - liberty

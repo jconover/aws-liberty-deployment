@@ -27,6 +27,12 @@ variable "ami_id" {
   default     = null
 }
 
+variable "ami_owners" {
+  description = "A list of AWS account IDs that own the AMI. Used to search for public AMIs."
+  type        = list(string)
+  default     = ["amazon"]
+}
+
 variable "use_amazon_linux_2" {
   description = "Use Amazon Linux 2 instead of Amazon Linux 2023"
   type        = bool

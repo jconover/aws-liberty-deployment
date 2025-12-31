@@ -44,6 +44,8 @@ A comprehensive DevOps platform for deploying and managing IBM WebSphere Liberty
 - Ansible >= 2.15
 - AWS CLI v2
 - SSH key pair in AWS
+- tflint (for Terraform linting)
+- tfsec (for security scanning)
 
 ## Quick Start
 
@@ -54,20 +56,25 @@ git clone https://github.com/jconover/aws-liberty-deployment.git
 cd aws-liberty-deployment
 ```
 
-### 2. Bootstrap Terraform Backend
+### 2. Bootstrap Environment
+
+This one-time setup configures the Terraform backend and populates initial secrets in AWS Secrets Manager.
 
 ```bash
-cd infra/terraform/backend
-terraform init
-terraform apply
+# Creates S3 bucket and DynamoDB table for Terraform state
+make bootstrap-backend
+
+# Prompts for passwords and creates secrets in AWS
+make bootstrap-secrets ENV=dev
 ```
 
 ### 3. Configure Environment
 
 ```bash
-cd ../environments/dev
+cd infra/terraform/environments/dev
 cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars with your values
+cd ../../.. # Return to root
 ```
 
 ### 4. Deploy Infrastructure

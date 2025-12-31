@@ -1,0 +1,11 @@
+---
+# defaults file for liberty
+java_package_name: "java-17-amazon-corretto"
+java_devel_package_name: "java-17-amazon-corretto-devel"
+java_home_path: "/usr/lib/jvm/java-17-amazon-corretto"
+
+# SSL settings
+liberty_keystore_path: "{{ liberty_servers_dir }}/{{ liberty_server_name }}/resources/security/key.p12"
+liberty_key_path: "{{ liberty_servers_dir }}/{{ liberty_server_name }}/resources/security/key.pem"
+liberty_csr_path: "{{ liberty_servers_dir }}/{{ liberty_server_name }}/resources/security/key.csr"
+liberty_cert_path: "{{ liberty_servers_dir }}/{{ liberty_server_name }}/resources/security/key.crt"

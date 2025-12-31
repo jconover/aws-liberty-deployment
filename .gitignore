@@ -63,6 +63,7 @@ credentials.json
 .env.*.local
 .claude*
 CLAUDE.md
+GEMINI.md
 
 # Build artifacts
 dist/

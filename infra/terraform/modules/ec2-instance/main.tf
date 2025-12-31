@@ -44,7 +44,7 @@ locals {
 data "aws_ami" "amazon_linux_2023" {
   count       = var.ami_id == null ? 1 : 0
   most_recent = true
-  owners      = ["amazon"]
+  owners      = var.ami_owners
 
   filter {
     name   = "name"
@@ -66,7 +66,7 @@ data "aws_ami" "amazon_linux_2023" {
 data "aws_ami" "amazon_linux_2" {
   count       = var.ami_id == null && var.use_amazon_linux_2 ? 1 : 0
   most_recent = true
-  owners      = ["amazon"]
+  owners      = var.ami_owners
 
   filter {
     name   = "name"
@@ -98,10 +98,7 @@ resource "aws_instance" "main" {
     encrypted             = true
     kms_key_id            = var.kms_key_id
     delete_on_termination = var.delete_root_volume_on_termination
-
-    tags = merge(local.common_tags, {
-      Name = "${var.name}-root"
-    })
+    # Tags applied via volume_tags below
   }
 
   # Additional EBS volumes
@@ -114,10 +111,7 @@ resource "aws_instance" "main" {
       encrypted             = true
       kms_key_id            = var.kms_key_id
       delete_on_termination = lookup(ebs_block_device.value, "delete_on_termination", true)
-
-      tags = merge(local.common_tags, {
-        Name = "${var.name}-${ebs_block_device.value.device_name}"
-      })
+      # Tags applied via volume_tags below
     }
   }
 
@@ -158,12 +152,6 @@ resource "aws_instance" "main" {
   volume_tags = merge(local.common_tags, {
     Name = "${var.name}-volumes"
   })
-
-  lifecycle {
-    ignore_changes = [
-      ami, # Ignore AMI changes to prevent unexpected rebuilds
-    ]
-  }
 }
 
 # Elastic IP (optional)

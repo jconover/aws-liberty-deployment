@@ -86,6 +86,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "terraform_state" {
     id     = "cleanup-old-versions"
     status = "Enabled"
 
+    filter {}  # Apply to all objects
+
     noncurrent_version_expiration {
       noncurrent_days = 90
     }
@@ -98,6 +100,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "terraform_state" {
 }
 
 # Bucket policy to enforce encryption in transit
+# Note: SSE enforcement removed - default encryption via aws_s3_bucket_server_side_encryption_configuration
+# handles this, and the policy was incompatible with Terraform S3-native locking (.tflock files)
 resource "aws_s3_bucket_policy" "terraform_state" {
   bucket = aws_s3_bucket.terraform_state.id
 
@@ -116,18 +120,6 @@ resource "aws_s3_bucket_policy" "terraform_state" {
         Condition = {
           Bool = {
             "aws:SecureTransport" = "false"
-          }
-        }
-      },
-      {
-        Sid       = "EnforceSSE"
-        Effect    = "Deny"
-        Principal = "*"
-        Action    = "s3:PutObject"
-        Resource  = "${aws_s3_bucket.terraform_state.arn}/*"
-        Condition = {
-          StringNotEquals = {
-            "s3:x-amz-server-side-encryption" = "aws:kms"
           }
         }
       }

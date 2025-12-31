@@ -40,6 +40,10 @@ tf-apply: ## Apply Terraform changes (requires tf-plan first)
 	@read -p "Are you sure you want to apply? [y/N] " confirm && [ "$$confirm" = "y" ]
 	cd $(TF_DIR) && terraform apply tfplan
 
+tf-apply-auto-approve: ## Apply Terraform changes non-interactively (requires tf-plan first)
+	@echo "$(YELLOW)Applying Terraform changes for $(ENV) non-interactively...$(NC)"
+	cd $(TF_DIR) && terraform apply -auto-approve tfplan
+
 tf-destroy: ## Destroy Terraform infrastructure (DANGEROUS)
 	@echo "$(RED)WARNING: This will destroy all infrastructure in $(ENV)!$(NC)"
 	@read -p "Type 'destroy-$(ENV)' to confirm: " confirm && [ "$$confirm" = "destroy-$(ENV)" ]
@@ -127,7 +131,7 @@ test-liberty-health: ## Check Liberty server health
 
 # ==================== Linting Commands ====================
 
-lint: tf-fmt tf-validate ansible-lint ansible-syntax ## Run all linters
+lint: tf-fmt tf-validate ansible-lint ansible-syntax lint-tf lint-security ## Run all linters
 	@echo "$(GREEN)All linting checks passed!$(NC)"
 
 lint-tf: ## Run Terraform linting with tflint
