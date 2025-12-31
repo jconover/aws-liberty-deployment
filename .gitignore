@@ -2,6 +2,7 @@
 *.tfstate
 *.tfstate.*
 *.tfplan
+tfplan
 .terraform/
 .terraform.lock.hcl
 crash.log
@@ -60,6 +61,8 @@ secrets/
 credentials.json
 .env.local
 .env.*.local
+.claude*
+CLAUDE.md
 
 # Build artifacts
 dist/

@@ -5,7 +5,7 @@
 
 # Default environment
 ENV ?= dev
-AWS_REGION ?= us-east-1
+AWS_REGION ?= us-west-1
 
 # Paths
 TF_DIR := infra/terraform/environments/$(ENV)

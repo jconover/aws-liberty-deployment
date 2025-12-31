@@ -13,11 +13,11 @@ terraform {
   }
 
   backend "s3" {
-    bucket         = "liberty-platform-terraform-state"
-    key            = "dev/terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "liberty-platform-terraform-locks"
-    encrypt        = true
+    bucket       = "liberty-platform-terraform-state"
+    key          = "dev/terraform.tfstate"
+    region       = "us-east-1"
+    use_lockfile = true
+    encrypt      = true
   }
 }
 
@@ -47,7 +47,7 @@ module "vpc" {
   project_name       = var.project_name
   environment        = local.environment
   vpc_cidr           = var.vpc_cidr
-  az_count           = 2
+  az_count           = var.az_count
   enable_nat_gateway = true
   single_nat_gateway = true  # Cost savings for dev
   enable_flow_logs   = false # Optional for dev
@@ -62,7 +62,7 @@ module "iam" {
 
   project_name                = var.project_name
   environment                 = local.environment
-  create_github_oidc_provider = false
+  create_github_oidc_provider = var.create_github_oidc_provider
 
   tags = local.common_tags
 }
@@ -113,7 +113,7 @@ module "awx" {
   name                 = "${var.project_name}-${local.environment}-awx"
   environment          = local.environment
   role                 = "awx"
-  instance_type        = "t3.medium"  # Smaller for dev
+  instance_type        = var.awx_instance_type
   subnet_id            = module.vpc.private_subnet_ids[0]
   security_group_ids   = [
     module.security_groups.awx_security_group_id,
@@ -168,7 +168,7 @@ module "liberty" {
   name                 = "${var.project_name}-${local.environment}-liberty"
   environment          = local.environment
   role                 = "liberty"
-  instance_type        = "t3.small"  # Smaller for dev
+  instance_type        = var.liberty_instance_type
   subnet_id            = module.vpc.private_subnet_ids[0]
   security_group_ids   = [module.security_groups.liberty_security_group_id]
   associate_public_ip  = false
@@ -181,7 +181,7 @@ module "liberty" {
   additional_volumes = [
     {
       device_name = "/dev/sdf"
-      volume_size = 50  # Smaller for dev
+      volume_size = var.liberty_data_volume_size
       volume_type = "gp3"
     }
   ]

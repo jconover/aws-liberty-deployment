@@ -135,7 +135,9 @@ resource "aws_s3_bucket_policy" "terraform_state" {
   })
 }
 
-# DynamoDB table for state locking
+# NOTE: DynamoDB locking is deprecated in favor of S3-native locking (use_lockfile = true)
+# This table is retained for backwards compatibility with existing deployments.
+# New environments should use `use_lockfile = true` in their backend configuration instead.
 resource "aws_dynamodb_table" "terraform_locks" {
   name         = local.table_name
   billing_mode = "PAY_PER_REQUEST"
@@ -172,10 +174,10 @@ resource "local_file" "backend_config" {
     # Generated backend configuration
     # Copy this to your environment's backend.tf
 
-    bucket         = "${local.bucket_name}"
-    key            = "ENVIRONMENT/terraform.tfstate"  # Replace ENVIRONMENT
-    region         = "${var.aws_region}"
-    dynamodb_table = "${local.table_name}"
-    encrypt        = true
+    bucket       = "${local.bucket_name}"
+    key          = "ENVIRONMENT/terraform.tfstate"  # Replace ENVIRONMENT
+    region       = "${var.aws_region}"
+    use_lockfile = true
+    encrypt      = true
   EOF
 }
