@@ -22,7 +22,7 @@ variable "owner" {
 variable "vpc_cidr" {
   description = "CIDR block for the VPC"
   type        = string
-  default     = "10.1.0.0/16"  # Different from prod
+  default     = "10.1.0.0/16" # Different from prod
 }
 
 variable "az_count" {

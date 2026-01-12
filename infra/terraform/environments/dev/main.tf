@@ -44,13 +44,13 @@ locals {
 module "vpc" {
   source = "../../modules/vpc"
 
-  project_name       = var.project_name
-  environment        = local.environment
-  vpc_cidr           = var.vpc_cidr
-  az_count           = var.az_count
-  enable_nat_gateway = true
-  single_nat_gateway = true  # Cost savings for dev
-  enable_flow_logs   = false # Optional for dev
+  project_name         = var.project_name
+  environment          = local.environment
+  vpc_cidr             = var.vpc_cidr
+  az_count             = var.az_count
+  enable_nat_gateway   = true
+  single_nat_gateway   = true  # Cost savings for dev
+  enable_flow_logs     = false # Optional for dev
   enable_vpc_endpoints = false # Cost savings
 
   tags = local.common_tags
@@ -93,7 +93,7 @@ module "bastion" {
   subnet_id            = module.vpc.public_subnet_ids[0]
   security_group_ids   = [module.security_groups.bastion_security_group_id]
   associate_public_ip  = true
-  create_eip           = false  # Use dynamic IP for dev
+  create_eip           = false # Use dynamic IP for dev
   key_name             = var.ssh_key_name
   iam_instance_profile = module.iam.bastion_instance_profile_name
   kms_key_id           = module.iam.kms_key_arn
@@ -101,7 +101,7 @@ module "bastion" {
   root_volume_size = 20
 
   enable_termination_protection = false
-  create_cloudwatch_alarms     = false
+  create_cloudwatch_alarms      = false
 
   tags = local.common_tags
 }
@@ -110,14 +110,14 @@ module "bastion" {
 module "awx" {
   source = "../../modules/ec2-instance"
 
-  name                 = "${var.project_name}-${local.environment}-awx"
-  environment          = local.environment
-  role                 = "awx"
-  instance_type        = var.awx_instance_type
-  subnet_id            = module.vpc.private_subnet_ids[0]
-  security_group_ids   = [
+  name          = "${var.project_name}-${local.environment}-awx"
+  environment   = local.environment
+  role          = "awx"
+  instance_type = var.awx_instance_type
+  subnet_id     = module.vpc.private_subnet_ids[0]
+  security_group_ids = [
     module.security_groups.awx_security_group_id,
-    module.security_groups.monitoring_security_group_id  # Combined for dev
+    module.security_groups.monitoring_security_group_id # Combined for dev
   ]
   associate_public_ip  = false
   key_name             = var.ssh_key_name
@@ -129,7 +129,7 @@ module "awx" {
   additional_volumes = [
     {
       device_name = "/dev/sdf"
-      volume_size = 50  # Smaller for dev
+      volume_size = 50 # Smaller for dev
       volume_type = "gp3"
     }
   ]
@@ -156,7 +156,7 @@ module "awx" {
   EOF
 
   enable_termination_protection = false
-  create_cloudwatch_alarms     = false
+  create_cloudwatch_alarms      = false
 
   tags = local.common_tags
 }
@@ -226,7 +226,7 @@ module "liberty" {
   EOF
 
   enable_termination_protection = false
-  create_cloudwatch_alarms     = false
+  create_cloudwatch_alarms      = false
 
   tags = local.common_tags
 }

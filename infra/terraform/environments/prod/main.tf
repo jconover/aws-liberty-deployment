@@ -43,13 +43,13 @@ locals {
 module "vpc" {
   source = "../../modules/vpc"
 
-  project_name       = var.project_name
-  environment        = local.environment
-  vpc_cidr           = var.vpc_cidr
-  az_count           = var.az_count
-  enable_nat_gateway = true
-  single_nat_gateway = false # HA for production
-  enable_flow_logs   = true
+  project_name         = var.project_name
+  environment          = local.environment
+  vpc_cidr             = var.vpc_cidr
+  az_count             = var.az_count
+  enable_nat_gateway   = true
+  single_nat_gateway   = false # HA for production
+  enable_flow_logs     = true
   enable_vpc_endpoints = true
 
   tags = local.common_tags
@@ -102,7 +102,7 @@ module "bastion" {
   root_volume_size = 20
 
   enable_termination_protection = true
-  create_cloudwatch_alarms     = true
+  create_cloudwatch_alarms      = true
 
   tags = local.common_tags
 }
@@ -154,7 +154,7 @@ module "awx" {
   EOF
 
   enable_termination_protection = true
-  create_cloudwatch_alarms     = true
+  create_cloudwatch_alarms      = true
 
   tags = local.common_tags
 }
@@ -179,7 +179,7 @@ module "monitoring" {
   additional_volumes = [
     {
       device_name = "/dev/sdf"
-      volume_size = 200  # Prometheus TSDB storage
+      volume_size = 200 # Prometheus TSDB storage
       volume_type = "gp3"
     }
   ]
@@ -203,7 +203,7 @@ module "monitoring" {
   EOF
 
   enable_termination_protection = true
-  create_cloudwatch_alarms     = true
+  create_cloudwatch_alarms      = true
 
   tags = local.common_tags
 }
@@ -274,8 +274,8 @@ module "liberty" {
     systemctl start node_exporter
   EOF
 
-  enable_termination_protection = false  # Allow scaling
-  create_cloudwatch_alarms     = true
+  enable_termination_protection = false # Allow scaling
+  create_cloudwatch_alarms      = true
 
   tags = merge(local.common_tags, {
     LibertyIndex = each.key + 1
