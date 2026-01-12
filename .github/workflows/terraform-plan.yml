@@ -78,6 +78,24 @@ jobs:
           working_directory: infra/terraform/environments/${{ matrix.environment }}
           soft_fail: true
 
+      - name: Setup Infracost
+        uses: infracost/actions/setup@v2
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Generate Infracost Cost Estimate
+        run: |
+          infracost breakdown --path infra/terraform/environments/${{ matrix.environment }} \
+                              --format json \
+                              --out-file /tmp/infracost-${{ matrix.environment }}.json \
+                              --terraform-var-file terraform.tfvars
+
+      - name: Post Infracost Comment
+        uses: infracost/actions/comment@v2
+        with:
+          path: /tmp/infracost-${{ matrix.environment }}.json
+          behavior: update
+
       - name: Terraform Plan
         id: plan
         working-directory: infra/terraform/environments/${{ matrix.environment }}

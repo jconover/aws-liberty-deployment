@@ -1,0 +1,12 @@
+version: 0.1
+
+projects:
+  - path: infra/terraform/environments/dev
+    name: dev
+    terraform_var_files:
+      - terraform.tfvars
+
+  - path: infra/terraform/environments/prod
+    name: prod
+    terraform_var_files:
+      - terraform.tfvars
