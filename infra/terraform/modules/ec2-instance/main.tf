@@ -1,6 +1,16 @@
 # EC2 Instance Module for AWS Liberty Deployment Platform
 # Flexible module for creating EC2 instances with various configurations
 
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
 locals {
   common_tags = merge(var.tags, {
     Module    = "ec2-instance"

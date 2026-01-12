@@ -62,11 +62,7 @@ variable "awx_instance_type" {
   default     = "t3.medium"
 }
 
-variable "monitoring_instance_type" {
-  description = "Instance type for monitoring server"
-  type        = string
-  default     = "t3.medium"
-}
+
 
 variable "liberty_instance_type" {
   description = "Instance type for Liberty servers"
@@ -75,11 +71,7 @@ variable "liberty_instance_type" {
 }
 
 # Liberty Server Configuration
-variable "liberty_instance_count" {
-  description = "Number of Liberty server instances"
-  type        = number
-  default     = 1
-}
+
 
 variable "liberty_data_volume_size" {
   description = "Size in GB for Liberty data volume"
@@ -92,10 +84,4 @@ variable "create_github_oidc_provider" {
   description = "Whether to create GitHub OIDC provider for CI/CD"
   type        = bool
   default     = false
-}
-
-variable "alert_email" {
-  description = "Email address for alert notifications"
-  type        = string
-  default     = ""
 }

@@ -1,6 +1,16 @@
 # VPC Module for AWS Liberty Deployment Platform
 # Creates a production-grade VPC with public and private subnets
 
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
 locals {
   # Calculate subnet CIDRs based on VPC CIDR
   azs = slice(data.aws_availability_zones.available.names, 0, var.az_count)
